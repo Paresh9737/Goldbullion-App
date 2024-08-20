@@ -1,3 +1,6 @@
-# Goldbullion-App
-Goldbullion app for a gold buy 
-Authar -Metaliya Paresh -
+<<<<<<< HEAD
+Your local changes here
+=======
+Changes from the remote repository here
+
+> > > > > > > <commit-id>
