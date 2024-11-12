@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-Your local changes here
-=======
-Changes from the remote repository here
-
-> > > > > > > <commit-id>
+fist comment
+<br>
+12/11/2024
