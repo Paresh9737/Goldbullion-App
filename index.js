@@ -1,9 +1,19 @@
 /**
  * @format
  */
-
-import {AppRegistry} from 'react-native';
+import 'react-native-gesture-handler';
+import {Appearance, AppRegistry} from 'react-native';
 import App from './App';
 import {name as appName} from './app.json';
+import {Provider} from 'react-redux';
+import {store} from './src/redux/store';
+Appearance.setColorScheme('light');
+const Root = () => (
+  <Provider store={store}>
+    <App />
+  </Provider>
+);
 
-AppRegistry.registerComponent(appName, () => App);
+export default Root;
+
+AppRegistry.registerComponent(appName, () => Root);
