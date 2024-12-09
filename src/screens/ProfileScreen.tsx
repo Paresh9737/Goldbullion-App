@@ -1,113 +1,65 @@
-import React, {useContext, useState} from 'react';
+import React, {useState, useEffect, useContext} from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Image,
-  FlatList,
-  ListRenderItem,
+  TouchableOpacity,
+  ActivityIndicator,
+  StatusBar,
+  Platform,
   Modal,
+  TextInput,
   Alert,
   Pressable,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
   ToastAndroid,
 } from 'react-native';
-import {useDispatch, useSelector} from 'react-redux';
-import {AuthContext} from '../navigator/contaxt/AuthContaxt';
-import CustomButton from '../components/CustomButton';
-import {Colors} from '../theme/Colors';
+import {useAppDispatch, useAppSelector} from '../redux/hook';
 import {RootState} from '../redux/store';
-import InputField from '../components/InputFild';
-import {Svg} from '../helper/SvgProvider';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {setUser} from '../redux/userSlice';
+import {AuthContext} from '../navigator/contaxt/AuthContaxt';
+import {Colors} from '../theme/Colors';
+import CustomAlert from '../components/CustomAlertALLScreen';
+import {useCustomAlert} from '../components/useCustomAlertAllScreen';
+import {deleteAccountUser} from '../redux/AuthStackReducer/deletAccountSlice';
+import {showMessage} from 'react-native-flash-message';
+import {Fonts} from '../assets/Fonts';
 import {
   responsiveScreenHeight,
   responsiveScreenWidth,
 } from 'react-native-responsive-dimensions';
 import {FontSizes} from '../theme/FontSizes';
-import {Fonts} from '../assets/Fonts';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import {setUser} from '../redux/userSlice';
-import {StackNavigationProp} from '@react-navigation/stack';
-import {DrawerParamList} from '../navigator/DrawerNavigater';
+import InputField from '../components/InputFild';
+import {Svg} from '../helper/SvgProvider';
+import CustomButton from '../components/CustomButton';
+import {editProfileUser} from '../redux/AuthStackReducer/editProfileSlice';
 
 type FormData = {
-  username: string;
-
-  email: string;
-  contact: any;
-  fiemName: string;
-  gst: string;
-  city: string;
+  username: string | null;
+  password: string;
+  email: string | null;
+  mobile: string | null;
+  country_code: string;
+  address: string | null;
 };
 type Errors = {
   [K in keyof FormData]?: string;
 };
-type MarketItem = {
-  id: string;
-  title: string;
-  key: keyof RootState['user']; // Add a key to access userData properties
-};
 
-const DATA: MarketItem[] = [
-  {
-    id: '1',
-    title: 'User ID',
-    key: 'username',
-  },
-  {
-    id: '2',
-    title: 'Email',
-    key: 'email',
-  },
-  {
-    id: '3',
-    title: 'Contact',
-    key: 'contact',
-  },
-  {
-    id: '4',
-    title: 'FiemName',
-    key: 'fiemName',
-  },
-  {
-    id: '5',
-    title: 'GST',
-    key: 'gst',
-  },
-  {
-    id: '6',
-    title: 'City',
-    key: 'city',
-  },
-];
-const MIN_LENGTH = 10;
-const MAX_LENGTH = 10;
-
-type RegisterScreenNavigationProp = StackNavigationProp<
-  DrawerParamList,
-  'OtpVeriftProfileScreen'
->;
-type Props = {
-  navigation: RegisterScreenNavigationProp;
-};
-
-const ProfileScreen = ({navigation}: Props) => {
+const ProfileScreen = ({navigation}: any) => {
   const {logout} = useContext(AuthContext);
-  const userData = useSelector((state: RootState) => state.user);
-  const [getData, setGetData] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const user = useAppSelector((state: RootState) => state.user);
+  const dispatch = useAppDispatch();
+  const {visible, alertConfig, showAlert, hideAlert} = useCustomAlert();
   const [modalVisible, setModalVisible] = useState(false);
-  const dispatch = useDispatch();
 
-  const [formData, setFormData] = useState<FormData>({
-    username: userData.username || '',
-    email: userData.email || '',
-    contact: userData.contact || '',
-    fiemName: userData.fiemName || '',
-    gst: userData.gst || '',
-    city: userData.city || '',
+  const [formData, setFormData] = useState({
+    email: user.email || '',
+    mobile: user?.mobile || '',
+    address: user?.address || '',
   });
   const [errors, setErrors] = useState<Errors>({});
 
@@ -117,110 +69,248 @@ const ProfileScreen = ({navigation}: Props) => {
       setErrors(prev => ({...prev, [field]: ''}));
     }
   };
-  const handleRegister = async (): Promise<boolean> => {
-    let newErrors: Errors = {};
-    let isValid = true;
 
-    if (!formData.username || formData.username.length < 4) {
-      newErrors.username = 'Username must be at least 4 characters';
-      isValid = false;
-    }
-    if (!formData.contact) {
-      newErrors.contact = 'Phone is required';
-      isValid = false;
-    } else if (
-      formData.contact.length < MIN_LENGTH ||
-      formData.contact.length > MAX_LENGTH
-    ) {
-      newErrors.contact = `Phone must be between ${MIN_LENGTH} digits`;
-      isValid = false;
-    }
+  const validateForm = () => {
+    const newErrors: Errors = {};
 
+    // Email validation
     if (!formData.email) {
       newErrors.email = 'Email is required';
-      isValid = false;
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
-      isValid = false;
+      newErrors.email = 'Email is invalid';
     }
 
-    if (!formData.city || formData.city.length < 2) {
-      newErrors.city = 'City name must be at least 2 characters';
-      isValid = false;
+    // Mobile validation
+    if (!formData.mobile) {
+      newErrors.mobile = 'Mobile number is required';
+    } else if (!/^\d{10}$/.test(formData.mobile)) {
+      newErrors.mobile = 'Mobile number must be 10 digits';
     }
+
+    // Address validation
+    if (!formData.address) {
+      newErrors.address = 'Address is required';
+    } else if (formData.address.length < 4) {
+      newErrors.address = 'Address must be at least 10 characters';
+    }
+
     setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
-    if (isValid) {
-      const formattedContact = `+91${formData.contact}`;
+  const handleRegister = async (): Promise<boolean> => {
+    if (validateForm()) {
       const updatedUserData = {
-        username: formData.username,
-        contact: formData.contact,
+        mobile: formData.mobile,
         email: formData.email,
-        fiemName: formData.fiemName,
-        gst: formData.gst,
-        city: formData.city,
-        password: userData.password,
+        address: formData.address,
+        username: user.username,
+        password: user.password,
+        id: user.id,
       };
 
-      // Check if contact number has been changed
-      if (formData.contact !== userData.contact) {
-        // Contact number changed, navigate to OTP screen
+      try {
+        if (formData.mobile !== user.mobile) {
+          ToastAndroid.show('Enter OTP', ToastAndroid.LONG);
+          navigation.navigate('ProfileMobileVerifyScreen', {
+            contact: updatedUserData,
+          });
+        } else {
+          await dispatch(setUser(updatedUserData));
+          loadUserData();
+          dispatch(
+            editProfileUser({
+              email: formData.email,
+              country_code: '+91',
+              mobile: formData.mobile,
+              address: formData.address,
+              id: user.id,
+            }),
+          );
+          ToastAndroid.show('Profile updated successfully', ToastAndroid.LONG);
+        }
+
         setModalVisible(false);
-        navigation.navigate('OtpVeriftProfileScreen', {
-          contact: formattedContact,
-        });
-      } else {
-        // Contact number not changed, update other fields
-        dispatch(setUser(updatedUserData));
-        await AsyncStorage.setItem('user', JSON.stringify(updatedUserData));
-        setModalVisible(false);
-        ToastAndroid.show('Profile updated successfully', ToastAndroid.LONG);
+        return true;
+      } catch (error) {
+        console.error('Error updating profile:', error);
+        ToastAndroid.show('Failed to update profile', ToastAndroid.LONG);
+        return false;
       }
     }
 
-    return isValid;
+    return false;
   };
 
-  const getDAta = async () => {
+  const loadUserData = async () => {
     try {
-      const user = await AsyncStorage.getItem('user');
-      setGetData(user);
-    } catch (e) {
-      console.log(`getDAta in error ${e}`);
+      const userData = await AsyncStorage.getItem('user');
+      if (userData) {
+        dispatch(setUser(JSON.parse(userData)));
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const renderProductHeader = () => (
-    <View style={styles.logoView}>
-      <Image style={styles.logo} source={require('../assets/png/logo.png')} />
-    </View>
-  );
-  const renderMarketItem: ListRenderItem<MarketItem> = ({item}) => (
-    <View style={styles.containerSecond}>
-      <Text style={styles.label}>{item.title} *</Text>
-      <Text style={[styles.label, {marginRight: responsiveScreenHeight(2)}]}>
-        {userData[item.key]} {/* Access userData properties dynamically */}
-      </Text>
-    </View>
-  );
-  return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.container}>
-        <FlatList
-          ListHeaderComponent={renderProductHeader}
-          data={DATA}
-          renderItem={renderMarketItem}
-          contentContainerStyle={{marginBottom: responsiveScreenHeight(1)}}
-          keyExtractor={item => item.id}
-          nestedScrollEnabled={true}
-          scrollEnabled={false}
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-        />
+  useEffect(() => {
+    loadUserData();
+  }, []);
 
+  useEffect(() => {
+    setTimeout(() => setLoading(false), 1500);
+  }, []);
+
+  const handleLogout = () => {
+    showAlert({
+      title: 'Logout',
+      message: 'Are you sure you want to logout from your account?',
+      confirmText: 'Logout',
+      onConfirm: () => {
+        hideAlert();
+        logout();
+      },
+    });
+  };
+
+  const handleDeleteAccount = async () => {
+    showAlert({
+      title: 'Delete Account',
+      message:
+        'This action cannot be undone. Are you sure you want to delete your account permanently?',
+      confirmText: 'Delete',
+      onConfirm: async () => {
+        hideAlert();
+        try {
+          const result = await dispatch(
+            deleteAccountUser({id: user.id}),
+          ).unwrap();
+
+          if (result.status === 'success') {
+            showMessage({
+              message: 'Success',
+              description: 'Account deleted successfully.',
+              type: 'success',
+              duration: 3000,
+            });
+
+            logout();
+          } else {
+            showMessage({
+              message: 'Error',
+              description: result.message || 'Account deletion failed.',
+              type: 'danger',
+              duration: 3000,
+            });
+          }
+        } catch (error: any) {
+          showMessage({
+            message: 'Error',
+            description: error.message || 'An unexpected error occurred.',
+            type: 'danger',
+            duration: 3000,
+          });
+          console.error('Error deleting account:', error);
+        }
+      },
+    });
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.primaryColor} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+
+      <View style={styles.header}>
+        <View style={styles.profileImageContainer}>
+          <Image
+            source={require('../assets/png/logo.png')}
+            style={styles.profileImage}
+          />
+          <TouchableOpacity style={styles.editImageButton}>
+            <Text style={styles.editImageText}>Edit</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.userName}>{user.username}</Text>
+        <Text style={styles.userEmail}>{user.email}</Text>
+      </View>
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.infoCard}>
+          <Text style={styles.infoTitle}>Personal Information</Text>
+
+          <View style={styles.infoRow}>
+            <View style={styles.infoItem}>
+              <Text style={styles.infoLabel}>Email</Text>
+              <Text style={styles.infoValue}>{user.email}</Text>
+            </View>
+          </View>
+
+          <View style={styles.infoRow}>
+            <View style={styles.infoItem}>
+              <Text style={styles.infoLabel}>Mobile</Text>
+              <Text style={styles.infoValue}>{user.mobile}</Text>
+            </View>
+          </View>
+
+          <View style={styles.infoRow}>
+            <View style={styles.infoItem}>
+              <Text style={styles.infoLabel}>Address</Text>
+              <Text style={styles.infoValue}>{user.address}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.actionButtons}>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => {
+              setModalVisible(true);
+            }}>
+            <Text style={styles.buttonText}>Edit Profile</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, styles.changePasswordButton]}
+            onPress={() => {
+              navigation.navigate('OtpVeriftProfileScreen');
+            }}>
+            <Text style={styles.buttonText}>Change Password</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, styles.deleteButton]}
+            onPress={handleDeleteAccount}>
+            <Text style={[styles.buttonText, styles.deleteButtonText]}>
+              Delete Account
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, styles.logoutButton]}
+            onPress={handleLogout}>
+            <Text style={[styles.buttonText, styles.logoutButtonText]}>
+              Logout
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <CustomAlert
+          visible={visible}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          confirmText={alertConfig.confirmText}
+          onConfirm={alertConfig.onConfirm}
+          onCancel={hideAlert}
+        />
         <Modal
           animationType="slide"
           transparent={true}
@@ -233,25 +323,10 @@ const ProfileScreen = ({navigation}: Props) => {
             <View style={styles.modalView}>
               <Text style={styles.modalText}>Edit Profile</Text>
 
-              <InputField
-                value={formData.username}
-                onChangeText={text => handleInputChange('username', text)}
-                placeholder="Username"
-                leftIcon={
-                  <Svg.Use
-                    height={responsiveScreenHeight(5)}
-                    width={responsiveScreenWidth(7)}
-                  />
-                }
-              />
-              {errors.username ? (
-                <Text style={styles.errorText}>{errors.username}</Text>
-              ) : null}
-
               {/* Call  */}
               <InputField
-                value={formData.contact}
-                onChangeText={text => handleInputChange('contact', text)}
+                value={formData.mobile}
+                onChangeText={text => handleInputChange('mobile', text)}
                 placeholder="Contact No."
                 keyboardType="number-pad"
                 leftIcon={
@@ -261,8 +336,8 @@ const ProfileScreen = ({navigation}: Props) => {
                   />
                 }
               />
-              {errors.contact ? (
-                <Text style={styles.errorText}>{errors.contact}</Text>
+              {errors.mobile ? (
+                <Text style={styles.errorText}>{errors.mobile}</Text>
               ) : null}
               {/* Email  */}
               <InputField
@@ -281,8 +356,8 @@ const ProfileScreen = ({navigation}: Props) => {
               ) : null}
               {/* Filad Name  */}
               <InputField
-                value={formData.fiemName}
-                onChangeText={text => handleInputChange('fiemName', text)}
+                value={formData.address}
+                onChangeText={text => handleInputChange('address', text)}
                 placeholder="Firm Name"
                 leftIcon={
                   <Svg.Use
@@ -291,39 +366,10 @@ const ProfileScreen = ({navigation}: Props) => {
                   />
                 }
               />
-              {errors.fiemName ? (
-                <Text style={styles.errorText}>{errors.fiemName}</Text>
+              {errors.address ? (
+                <Text style={styles.errorText}>{errors.address}</Text>
               ) : null}
-              {/* Gst  */}
-              <InputField
-                value={formData.gst}
-                onChangeText={text => handleInputChange('gst', text)}
-                placeholder="GST IN"
-                leftIcon={
-                  <Svg.GST
-                    height={responsiveScreenHeight(5)}
-                    width={responsiveScreenWidth(6)}
-                  />
-                }
-              />
-              {errors.gst ? (
-                <Text style={styles.errorText}>{errors.gst}</Text>
-              ) : null}
-              {/* City  */}
-              <InputField
-                value={formData.city}
-                onChangeText={text => handleInputChange('city', text)}
-                placeholder="City"
-                leftIcon={
-                  <Svg.City
-                    height={responsiveScreenHeight(5)}
-                    width={responsiveScreenWidth(6)}
-                  />
-                }
-              />
-              {errors.city ? (
-                <Text style={styles.errorText}>{errors.city}</Text>
-              ) : null}
+
               <CustomButton
                 title="SAVE"
                 onPress={handleRegister}
@@ -342,69 +388,155 @@ const ProfileScreen = ({navigation}: Props) => {
             </View>
           </View>
         </Modal>
-
-        <CustomButton
-          title="Edit"
-          onPress={() => setModalVisible(true)}
-          buttonStyle={styles.logoutButton}
-          textStyle={styles.logoutButtonText}
-        />
-
-        <CustomButton
-          title="Logout"
-          onPress={logout}
-          buttonStyle={styles.logoutButton}
-          textStyle={styles.logoutButtonText}
-        />
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flexGrow: 1,
-    paddingHorizontal: responsiveScreenHeight(2),
-    backgroundColor: Colors.primaryColor2,
+    flex: 1,
+    backgroundColor: Colors.bgn,
   },
-  containerSecond: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    borderBottomWidth: 2,
+    backgroundColor: Colors.bgn,
+  },
+  header: {
+    backgroundColor: Colors.primaryColor,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: 30,
+    alignItems: 'center',
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    shadowColor: Colors.black,
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 8,
+  },
+  profileImageContainer: {
+    marginBottom: 15,
+    alignItems: 'center',
+  },
+  profileImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 4,
+    borderColor: Colors.primaryColor1,
+  },
+  editImageButton: {
+    position: 'absolute',
+    right: -10,
+    bottom: 0,
+    backgroundColor: Colors.primaryColor1,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+    shadowColor: Colors.black,
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  editImageText: {
+    color: Colors.primaryColor,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  userName: {
+    color: Colors.primaryColor1,
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  userEmail: {
+    color: Colors.primaryColor2,
+    fontSize: 16,
+  },
+  content: {
+    flex: 1,
+    padding: 20,
+  },
+  infoCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: Colors.black,
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: Colors.borderColor,
+  },
+  infoTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.primaryColor,
+    marginBottom: 20,
+  },
+  infoRow: {
+    marginBottom: 15,
+    borderBottomWidth: 1,
     borderBottomColor: Colors.borderColor,
+    paddingBottom: 10,
   },
-  logo: {
-    height: responsiveScreenHeight(18),
-    width: responsiveScreenHeight(18),
-    borderRadius: responsiveScreenHeight(9),
-    alignSelf: 'center',
-    resizeMode: 'cover',
+  infoItem: {
+    marginBottom: 5,
   },
-  logoView: {
-    padding: 3,
-    // borderWidth: 1,
-    borderRadius: responsiveScreenHeight(9),
-    alignSelf: 'center',
-    // borderColor: Colors.black,
-    marginVertical: responsiveScreenHeight(2),
+  infoLabel: {
+    fontSize: 14,
+    color: Colors.textGrey,
+    marginBottom: 5,
+  },
+  infoValue: {
+    fontSize: 16,
+    color: Colors.Dark,
+    fontWeight: '500',
+  },
+  actionButtons: {
+    marginBottom: 30,
+  },
+  button: {
+    backgroundColor: Colors.primaryColor,
+    borderRadius: 15,
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 12,
+    shadowColor: Colors.black,
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  buttonText: {
+    color: Colors.primaryColor1,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  changePasswordButton: {
+    backgroundColor: Colors.Dark,
+  },
+  deleteButton: {
+    backgroundColor: Colors.white,
+    borderWidth: 2,
+    borderColor: Colors.Low,
+  },
+  deleteButtonText: {
+    color: Colors.Low,
   },
   logoutButton: {
-    backgroundColor: Colors.Yellow,
-    marginVertical: responsiveScreenHeight(1),
+    backgroundColor: Colors.Low,
   },
   logoutButtonText: {
-    color: Colors.black,
+    color: Colors.white,
   },
-  label: {
-    fontSize: FontSizes.medium,
-    fontFamily: Fonts.Medium,
-    color: Colors.black,
-    paddingLeft: responsiveScreenHeight(1),
-    marginTop: responsiveScreenHeight(3),
-    marginBottom: responsiveScreenHeight(1),
-  },
-
+  // modal css
   // modal
   centeredView: {
     flex: 1,
@@ -418,10 +550,6 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     padding: 10,
     width: '95%',
-  },
-  button: {
-    borderRadius: 20,
-    padding: 10,
   },
 
   buttonClose: {
@@ -466,10 +594,3 @@ const styles = StyleSheet.create({
 });
 
 export default ProfileScreen;
-
-// <InfoItem label="Username" value={userData.username} />
-// <InfoItem label="Email" value={userData.email} />
-// <InfoItem label="Contact" value={userData.contact} />
-// <InfoItem label="Firm Name" value={userData.fiemName} />
-// <InfoItem label="GST" value={userData.gst} />
-// <InfoItem label="City" value={userData.city} />

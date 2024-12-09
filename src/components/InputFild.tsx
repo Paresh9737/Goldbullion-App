@@ -36,6 +36,7 @@ const InputField: React.FC<InputFieldProps> = ({
       <TextInput
         style={[styles.textInput, inputStyle]} // Merge the styles
         {...textInputProps}
+        placeholderTextColor={Colors.black}
       />
       {rightIcon && (
         <TouchableOpacity style={styles.iconContainer}>

@@ -4,6 +4,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  ToastAndroid,
   View,
 } from 'react-native';
 import React, {useState} from 'react';
@@ -19,6 +20,8 @@ import {Svg} from '../../helper/SvgProvider';
 import CustomButton from '../../components/CustomButton';
 import {StackNavigationProp} from '@react-navigation/stack';
 import {AuthStackParamList} from '../../navigator/AuthStackNavigator';
+import {useAppDispatch, useAppSelector} from '../../redux/hook';
+import {checkMobileNumber} from '../../redux/AuthStackReducer/ForgotPasswordSlice';
 
 const MIN_LENGTH = 10;
 const MAX_LENGTH = 10;
@@ -35,17 +38,57 @@ const ForgotPasswordScreen = ({navigation}: Props) => {
   const [contact, setContact] = useState<string>('');
   const [error, setError] = useState<string>('');
 
-  const sendOtp = () => {
-    if (!contact) {
-      setError('phone is required');
-    } else if (contact.length < MIN_LENGTH || contact.length > MAX_LENGTH) {
-      setError(`phone must be between ${MIN_LENGTH} digits`);
-    } else {
-      const formattedContact = `+91${contact}`;
+  const dispatch = useAppDispatch();
+  const {data} = useAppSelector(state => state.mobile);
 
-      navigation.navigate('ForgotPasswordOtpScreen', {
-        contact: formattedContact,
-      });
+  const sendOtp = async () => {
+    setError('');
+
+    if (!contact) {
+      setError('Phone number is required.');
+    } else if (contact.length < MIN_LENGTH || contact.length > MAX_LENGTH) {
+      setError(
+        `Phone number must be between ${MIN_LENGTH} and ${MAX_LENGTH} digits.`,
+      );
+    } else {
+      try {
+        const actionResult = await dispatch(
+          checkMobileNumber({data: data || '', mobile: contact}), // Provide a default empty string if data is null
+        ).unwrap();
+
+        if (actionResult && actionResult.status === 'success') {
+          ToastAndroid.showWithGravity(
+            'Send OTP Successfully.',
+            ToastAndroid.SHORT,
+            ToastAndroid.TOP,
+          );
+          const formattedContact = `+91${contact}`;
+
+          navigation.navigate('ForgotPasswordOtpScreen', {
+            contact: formattedContact,
+            data: actionResult.data.toString(), // Convert to string if needed
+          });
+        } else {
+          // No user found
+          setError('Mobile Number Not found. Please register.');
+          ToastAndroid.showWithGravity(
+            'Mobile Number Not found. Please register.',
+            ToastAndroid.LONG,
+            ToastAndroid.TOP,
+          );
+        }
+      } catch (error: any) {
+        // API error handling
+        setError(
+          error?.message || 'Failed to check mobile number. Please try again.',
+        );
+        ToastAndroid.showWithGravity(
+          'Failed to check mobile number. Please try again.',
+          ToastAndroid.LONG,
+          ToastAndroid.TOP,
+        );
+        console.error('checkMobileNumber error:', error);
+      }
     }
   };
 

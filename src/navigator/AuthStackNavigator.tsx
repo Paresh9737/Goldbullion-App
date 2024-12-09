@@ -14,13 +14,16 @@ export type AuthStackParamList = {
   LoginScreen: undefined;
   RegisterScreen: undefined;
   OtpScreen: {
-    contact: string;
+    navigationData: any;
   };
   ForgotPasswordScreen: undefined;
   ForgotPasswordOtpScreen: {
     contact: string;
+    data: string;
   };
-  NewSetPasswordScreen: undefined;
+  NewSetPasswordScreen: {
+    data: string;
+  };
 };
 
 export type AuthStackNavigationProp = StackNavigationProp<AuthStackParamList>;

@@ -24,18 +24,28 @@ import {
   AuthStackParamList,
 } from '../../navigator/AuthStackNavigator';
 import {Fonts} from '../../assets/Fonts';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {AuthContext} from '../../navigator/contaxt/AuthContaxt';
 import {useFocusEffect} from '@react-navigation/native';
+import {useAppDispatch, useAppSelector} from '../../redux/hook';
+import {loginUser} from '../../redux/AuthStackReducer/authSlice';
+import {setUser} from '../../redux/userSlice';
+import {showMessage} from 'react-native-flash-message';
+import CustomFlashMessage from '../../components/CustomFlashMessage';
 
 type LoginScreenNavigationProp = StackNavigationProp<
   AuthStackParamList,
   'RegisterScreen'
 >;
 
+// Updated FormData type to include all fields
 type FormData = {
   username: string;
   password: string;
+  email?: string;
+  contact?: string;
+  country_code?: string;
+  address?: string;
+  id?: string;
 };
 
 type Errors = {
@@ -54,8 +64,14 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
   const [formData, setFormData] = useState<FormData>({
     username: '',
     password: '',
+    email: '',
+    contact: '',
+    country_code: '+91',
+    address: '',
+    id: '',
   });
   const [errors, setErrors] = useState<Errors>({});
+  const dispatch = useAppDispatch();
 
   // Reset input fields and errors when screen is focused
   useFocusEffect(
@@ -63,15 +79,20 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
       setFormData({
         username: '',
         password: '',
+        email: '',
+        contact: '',
+        country_code: '+91',
+        address: '',
+        id: '',
       });
       setErrors({});
     }, []),
   );
 
   const handleInputChange = (field: keyof FormData, value: string) => {
-    setFormData({...formData, [field]: value});
-    if (errors[field]) {
-      setErrors({...errors, [field]: ''});
+    setFormData(prevData => ({...prevData, [field]: value}));
+    if (errors[field as keyof Errors]) {
+      setErrors(prevErrors => ({...prevErrors, [field as keyof Errors]: ''}));
     }
   };
 
@@ -98,44 +119,73 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
     }
 
     setErrors(newErrors);
-    if (valid) {
-      login();
-      console.log('Login Done');
 
-      // try {
-      //   const storedUserData = await AsyncStorage.getItem('user');
-      //   if (storedUserData) {
-      //     const userData = JSON.parse(storedUserData);
-      //     if (
-      //       userData.username === formData.username &&
-      //       userData.password === formData.password
-      //     ) {
-      //       setFormData({
-      //         username: '',
-      //         password: '',
-      //       });
-      //       login();
-      //       console.log('Login Done');
-      //       ToastAndroid.show('Login Done', ToastAndroid.SHORT);
-      //     } else {
-      //       ToastAndroid.show(
-      //         'Invalid username or password',
-      //         ToastAndroid.SHORT,
-      //       );
-      //     }
-      //   } else {
-      //     ToastAndroid.show('No user data found', ToastAndroid.SHORT);
-      //   }
-      // } catch (error) {
-      //   console.error('Error retrieving user data from AsyncStorage:', error);
-      // }
+    if (valid) {
+      try {
+        const result = await dispatch(
+          loginUser({
+            username: formData.username,
+            password: formData.password,
+            email: formData.email,
+            country_code: formData.country_code,
+            mobile: formData.contact,
+            address: formData.address,
+            id: formData.id,
+          }),
+        ).unwrap();
+
+        if (result.status === 'success') {
+          dispatch(
+            setUser({
+              username: result.data.username,
+              password: result.data.password,
+              email: result.data.email,
+              mobile: result.data.mobile,
+              address: result.data.address,
+              id: result.data.id,
+            }),
+          );
+          login();
+
+          // Login successful
+          ToastAndroid.showWithGravity(
+            'Login Done',
+            ToastAndroid.SHORT,
+            ToastAndroid.TOP,
+          );
+
+          // Reset form
+          setFormData({
+            username: '',
+            password: '',
+            email: '',
+            contact: '',
+            country_code: '+91',
+            address: '',
+          });
+        } else {
+          showMessage({
+            message: 'error',
+            description: result.message || 'Please try again',
+            type: 'danger',
+            duration: 3000,
+          });
+        }
+      } catch (error: any) {
+        showMessage({
+          message: 'Error',
+          description: error.message || 'No user data found. Please register.',
+          type: 'danger',
+          duration: 3000,
+        });
+      }
     }
   };
-
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}>
+      <CustomFlashMessage position="top" />
       <ScrollView contentContainerStyle={styles.scrollViewContent}>
         <View style={styles.secondContainer}>
           <Text style={styles.loginText}>Login</Text>

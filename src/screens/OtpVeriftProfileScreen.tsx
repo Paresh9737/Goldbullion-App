@@ -1,203 +1,279 @@
-import React, {useState, useEffect, useRef} from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  BackHandler,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
+  ToastAndroid,
   TouchableOpacity,
   View,
 } from 'react-native';
-import auth from '@react-native-firebase/auth';
+import React, {useContext, useEffect, useState} from 'react';
+import {DrawerParamList} from '../navigator/DrawerNavigater';
 import {StackNavigationProp} from '@react-navigation/stack';
+import {useAppDispatch, useAppSelector} from '../redux/hook';
+import InputField from '../components/InputFild';
+import {Svg} from '../helper/SvgProvider';
 import {
   responsiveScreenHeight,
   responsiveScreenWidth,
 } from 'react-native-responsive-dimensions';
-import {AuthStackParamList} from '../navigator/AuthStackNavigator';
 import CustomButton from '../components/CustomButton';
 import {Colors} from '../theme/Colors';
 import {FontSizes} from '../theme/FontSizes';
 import {Fonts} from '../assets/Fonts';
-import {DrawerParamList} from '../navigator/DrawerNavigater';
+import {setUser} from '../redux/userSlice';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {RootState} from '../redux/store';
+import {changePasswordUser} from '../redux/AuthStackReducer/changePasswordSlice';
+import {AuthContext} from '../navigator/contaxt/AuthContaxt';
+import {showMessage} from 'react-native-flash-message';
+import CustomFlashMessage from '../components/CustomFlashMessage';
 
-type OtpScreenNavigationProp = StackNavigationProp<DrawerParamList, 'Logout'>;
-
-type Props = {
-  navigation: OtpScreenNavigationProp;
-  route: {
-    params: {
-      contact: string;
-    };
-  };
+type OtpVeriftProfileScreenProps = {
+  navigation: StackNavigationProp<DrawerParamList, 'OtpVeriftProfileScreen'>;
 };
 
-const OtpVeriftProfileScreen = ({navigation, route}: Props) => {
-  const {contact} = route.params;
-  const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
-  const [confirm, setConfirm] = useState<any>(null);
-  const [timer, setTimer] = useState<number>(60);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isResending, setIsResending] = useState<boolean>(false);
-  const inputRefs = useRef<Array<TextInput | null>>([]);
+type FormData = {
+  password: string;
+  newpassword: string;
+  oldpassword: string;
+  id: string;
+};
 
-  // const navigation = useNavigation();
+type Errors = {
+  [K in keyof FormData]?: string;
+};
 
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      try {
-        sendOTP();
-        setTimer(60);
-      } catch (error) {}
-    });
+const OtpVeriftProfileScreen: React.FC<OtpVeriftProfileScreenProps> = ({
+  navigation,
+}) => {
+  const [ShowPassword, setShowPassword] = useState<Boolean>(false);
+  const [ShowPasswordSecond, setShowPasswordSecond] = useState<Boolean>(false);
+  const user = useAppSelector((state: RootState) => state.user);
+  const [formData, setFormData] = useState<FormData>({
+    password: '',
+    newpassword: '',
+    oldpassword: '',
+    id: user.id || '',
+  });
+  const [errors, setErrors] = useState<Errors>({});
+  const {logout} = useContext(AuthContext);
+  const dispatch = useAppDispatch();
 
-    return unsubscribe;
-  }, [navigation]);
+  const changePasswordStatus = useAppSelector(
+    (state: RootState) => state.changePassword.status,
+  );
+  const changePasswordError = useAppSelector(
+    (state: RootState) => state.changePassword.error,
+  );
 
-  useEffect(() => {
-    const backHandler = BackHandler.addEventListener(
-      'hardwareBackPress',
-      () => {
-        navigation.goBack(); // Navigate back when the back button is pressed
-        return true; // Prevent default behavior (exiting the app)
-      },
-    );
-
-    return () => backHandler.remove(); // Clean up the event listener on unmount
-  }, [navigation]);
-
-  const sendOTP = async () => {
+  const loadUserData = async () => {
     try {
-      setIsResending(true);
-      console.log(contact);
-      const confirmation = await auth().signInWithPhoneNumber(contact);
-      console.log('confirmation');
-      setConfirm(confirmation);
-      setIsResending(false);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to send OTP. Please try again.');
-    }
-  };
-
-  const resendOtp = () => {
-    sendOTP();
-    setTimer(60);
-  };
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (timer > 0) {
-        setTimer(timer - 1);
+      const userData = await AsyncStorage.getItem('user');
+      if (userData) {
+        dispatch(setUser(JSON.parse(userData)));
       }
-    }, 1000);
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, [timer]);
-
-  const verifyOTP = async () => {
-    if (!confirm) {
-      Alert.alert('Error', 'Please request OTP first');
-      return;
-    }
-
-    const otpString = otp.join('');
-    if (otpString.length !== 6) {
-      Alert.alert('Error', 'Please enter a valid 6-digit OTP');
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      await confirm.confirm(otpString);
-
-      navigation.navigate('Logout');
     } catch (error) {
-      console.error('Error verifying OTP:', error);
-      Alert.alert('Error', 'Invalid OTP. Please try again.');
-    } finally {
-      setIsLoading(false);
+      console.error('Error loading user data:', error);
     }
   };
 
-  const handleOtpChange = (index: number, value: string) => {
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
+  useEffect(() => {
+    loadUserData();
+  }, []);
 
-    if (value !== '' && index < 5) {
-      inputRefs.current[index + 1]?.focus();
+  const handleInputChange = (field: keyof FormData, value: string) => {
+    setFormData(prev => ({...prev, [field]: value}));
+    if (errors[field]) {
+      setErrors(prev => ({...prev, [field]: ''}));
     }
   };
 
+  const toggleShowPassword = () => {
+    setShowPassword(!ShowPassword);
+  };
+
+  const toggleShowPasswordSecond = () => {
+    setShowPasswordSecond(!ShowPasswordSecond);
+  };
+
+  const Submit = async () => {
+    let newErrors: Errors = {};
+    let isValid = true;
+
+    if (!formData.oldpassword || formData.oldpassword.length < 6) {
+      newErrors.oldpassword = 'Old password must be at least 6 characters';
+      isValid = false;
+    }
+
+    if (!formData.password || formData.password.length < 6) {
+      newErrors.password = 'New password must be at least 6 characters';
+      isValid = false;
+    }
+    if (!formData.newpassword || formData.newpassword.length < 6) {
+      newErrors.newpassword = 'Confirm password must be at least 6 characters';
+      isValid = false;
+    }
+
+    if (formData.password !== formData.newpassword) {
+      newErrors.newpassword = 'Passwords do not match';
+      isValid = false;
+    }
+
+    setErrors(newErrors);
+    if (isValid) {
+      try {
+        await dispatch(
+          changePasswordUser({
+            user_id: formData.id,
+            password: formData.password,
+            password_confirmation: formData.newpassword,
+            old_password: formData.oldpassword,
+          }),
+        ).unwrap();
+        if (changePasswordStatus === 'success') {
+          showMessage({
+            message: 'success',
+            description: 'Password changed successfully',
+            type: 'success',
+            duration: 3000,
+          });
+
+          logout();
+        } else if (changePasswordStatus === 'fail' && changePasswordError) {
+          showMessage({
+            message: 'error',
+            description: changePasswordError || 'Password changed error',
+            type: 'danger',
+            duration: 3000,
+          });
+        }
+      } catch (error: any) {
+        console.log(error);
+      }
+    }
+    return isValid;
+  };
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}>
+      <CustomFlashMessage position="top" />
       <ScrollView contentContainerStyle={styles.scrollViewContent}>
         <View style={styles.secondContainer}>
-          <Text style={styles.otpText}>OTP Verification</Text>
-          <Text style={styles.otpTextNamberShow}>
-            OTP send this number : {contact.slice(3, 25)}
-          </Text>
-          <View style={styles.otpContainer}>
-            {otp.map((digit, index) => (
-              <TextInput
-                key={index}
-                ref={ref => (inputRefs.current[index] = ref)}
-                style={styles.otpInput}
-                maxLength={1}
-                keyboardType="number-pad"
-                value={digit}
-                onChangeText={value => handleOtpChange(index, value)}
-                onKeyPress={({nativeEvent}) => {
-                  if (
-                    nativeEvent.key === 'Backspace' &&
-                    digit === '' &&
-                    index > 0
-                  ) {
-                    inputRefs.current[index - 1]?.focus();
-                  }
-                }}
-              />
-            ))}
-          </View>
-          {isLoading ? (
-            <ActivityIndicator size="large" color={Colors.Yellow} />
-          ) : (
-            <CustomButton
-              title="VERIFY OTP"
-              buttonStyle={{backgroundColor: Colors.Yellow}}
-              textStyle={{color: Colors.black}}
-              onPress={verifyOTP}
-            />
-          )}
+          <Text style={styles.loginText}>Set New Password</Text>
 
-          <TouchableOpacity
-            onPress={resendOtp}
-            disabled={timer > 0 || isResending}>
-            <Text
-              style={[
-                styles.resendText,
-                (timer > 0 || isResending) && styles.resendTextDisabled,
-              ]}>
-              {isResending
-                ? 'Sending...'
-                : timer > 0
-                ? `Resend OTP in ${timer}s`
-                : 'Resend OTP'}
-            </Text>
-          </TouchableOpacity>
+          <InputField
+            value={formData.oldpassword}
+            onChangeText={text => handleInputChange('oldpassword', text)}
+            placeholder="old password"
+            secureTextEntry={!ShowPassword}
+            leftIcon={
+              <Svg.LockPassword
+                height={responsiveScreenHeight(5)}
+                width={responsiveScreenWidth(7)}
+              />
+            }
+            rightIcon={
+              <TouchableOpacity onPress={toggleShowPassword}>
+                {ShowPassword ? (
+                  <Svg.Eye
+                    height={responsiveScreenHeight(5)}
+                    width={responsiveScreenWidth(7)}
+                  />
+                ) : (
+                  <Svg.CloseEye
+                    height={responsiveScreenHeight(5)}
+                    width={responsiveScreenWidth(7)}
+                  />
+                )}
+              </TouchableOpacity>
+            }
+          />
+
+          {errors.oldpassword ? (
+            <Text style={styles.errorText}>{errors.oldpassword}</Text>
+          ) : null}
+
+          {/* *********************  */}
+
+          <InputField
+            value={formData.password}
+            onChangeText={text => handleInputChange('password', text)}
+            placeholder="new password"
+            secureTextEntry={!ShowPasswordSecond}
+            leftIcon={
+              <Svg.LockPassword
+                height={responsiveScreenHeight(5)}
+                width={responsiveScreenWidth(7)}
+              />
+            }
+            rightIcon={
+              <TouchableOpacity onPress={toggleShowPasswordSecond}>
+                {ShowPasswordSecond ? (
+                  <Svg.Eye
+                    height={responsiveScreenHeight(5)}
+                    width={responsiveScreenWidth(7)}
+                  />
+                ) : (
+                  <Svg.CloseEye
+                    height={responsiveScreenHeight(5)}
+                    width={responsiveScreenWidth(7)}
+                  />
+                )}
+              </TouchableOpacity>
+            }
+          />
+
+          {errors.password ? (
+            <Text style={styles.errorText}>{errors.password}</Text>
+          ) : null}
+
+          <InputField
+            value={formData.newpassword}
+            onChangeText={text => handleInputChange('newpassword', text)}
+            placeholder="comfirm password"
+            secureTextEntry={!ShowPasswordSecond}
+            leftIcon={
+              <Svg.LockPassword
+                height={responsiveScreenHeight(5)}
+                width={responsiveScreenWidth(7)}
+              />
+            }
+            rightIcon={
+              <TouchableOpacity onPress={toggleShowPasswordSecond}>
+                {ShowPasswordSecond ? (
+                  <Svg.Eye
+                    height={responsiveScreenHeight(5)}
+                    width={responsiveScreenWidth(7)}
+                  />
+                ) : (
+                  <Svg.CloseEye
+                    height={responsiveScreenHeight(5)}
+                    width={responsiveScreenWidth(7)}
+                  />
+                )}
+              </TouchableOpacity>
+            }
+          />
+          {errors.newpassword ? (
+            <Text style={styles.errorText}>{errors.newpassword}</Text>
+          ) : null}
+
+          <CustomButton
+            title="SUBMIT"
+            onPress={Submit}
+            buttonStyle={{backgroundColor: Colors.Yellow}}
+            textStyle={{color: Colors.black}}
+          />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 };
+
+export default OtpVeriftProfileScreen;
 
 const styles = StyleSheet.create({
   container: {
@@ -216,47 +292,17 @@ const styles = StyleSheet.create({
     borderColor: Colors.primaryColor1,
     borderRadius: 10,
   },
-  otpText: {
+  loginText: {
     color: Colors.white,
-    fontSize: FontSizes.large,
-    fontWeight: 'bold',
-    marginBottom: responsiveScreenHeight(1),
+    fontSize: FontSizes.large1,
+    marginBottom: responsiveScreenHeight(2),
     textAlign: 'center',
     fontFamily: Fonts.ExtraBold,
   },
-  otpContainer: {
-    flexDirection: 'row',
-    marginBottom: responsiveScreenHeight(2),
-    justifyContent: 'center',
-  },
-  otpInput: {
-    width: responsiveScreenWidth(11),
-    height: responsiveScreenHeight(6),
-    borderWidth: 1,
-    borderColor: Colors.white,
-    textAlign: 'center',
-    color: Colors.black,
-    fontSize: FontSizes.medium,
-    borderRadius: 5,
-    backgroundColor: Colors.white,
-    marginHorizontal: responsiveScreenHeight(0.5),
-  },
-  resendText: {
-    color: Colors.white,
-    fontSize: FontSizes.medium,
-    marginTop: 20,
-    textAlign: 'center',
-    fontFamily: Fonts.SemiBold,
-  },
-  resendTextDisabled: {
-    color: Colors.white,
-    opacity: 0.5,
-  },
-  otpTextNamberShow: {
-    color: Colors.white,
-    textAlign: 'center',
-    paddingBottom: 15,
+
+  errorText: {
+    color: Colors.Yellow,
+    marginVertical: responsiveScreenHeight(-1),
+    textAlign: 'right',
   },
 });
-
-export default OtpVeriftProfileScreen;

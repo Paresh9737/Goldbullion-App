@@ -1,5 +1,7 @@
 import React, {createContext, useEffect, useState} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {useAppDispatch} from '../../redux/hook';
+import {logoutUser} from '../../redux/userSlice';
 
 export type AuthContextType = {
   login: () => void;
@@ -19,7 +21,7 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [userToken, setUserToken] = useState<string | null>(null);
-
+  const dispatch = useAppDispatch();
   const login = () => {
     setIsLoading(true);
     setUserToken('newUserAsyn');
@@ -32,6 +34,8 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({
     setUserToken(null);
     AsyncStorage.removeItem('userToken');
     AsyncStorage.removeItem('user');
+    AsyncStorage.removeItem('user');
+    dispatch(logoutUser());
 
     setIsLoading(false);
   };

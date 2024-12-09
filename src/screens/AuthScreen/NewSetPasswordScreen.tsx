@@ -4,6 +4,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  ToastAndroid,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -20,12 +21,21 @@ import {Svg} from '../../helper/SvgProvider';
 import CustomButton from '../../components/CustomButton';
 import {StackNavigationProp} from '@react-navigation/stack';
 import {AuthStackParamList} from '../../navigator/AuthStackNavigator';
+import {useAppDispatch, useAppSelector} from '../../redux/hook';
+import {setPasswordSlice} from '../../redux/AuthStackReducer/NewSetPasswordSlice';
 
 type RegisterScreenNavigationProp = StackNavigationProp<
   AuthStackParamList,
   'NewSetPasswordScreen'
 >;
-
+type Props = {
+  navigation: RegisterScreenNavigationProp;
+  route: {
+    params: {
+      data: string;
+    };
+  };
+};
 type FormData = {
   password: string;
   newpassword: string;
@@ -34,20 +44,16 @@ type Errors = {
   [K in keyof FormData]?: string;
 };
 
-type Props = {
-  navigation: RegisterScreenNavigationProp;
-};
-
-const NewSetPasswordScreen = ({navigation}: Props) => {
+const NewSetPasswordScreen = ({navigation, route}: Props) => {
   const [ShowPassword, setShowPassword] = useState<Boolean>(false);
   const [ShowPasswordSecond, setShowPasswordSecond] = useState<Boolean>(false);
-
+  const {data} = route.params;
   const [formData, setFormData] = useState<FormData>({
     password: '',
     newpassword: '',
   });
   const [errors, setErrors] = useState<Errors>({});
-
+  const dispatch = useAppDispatch();
   const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData(prev => ({...prev, [field]: value}));
     if (errors[field]) {
@@ -63,28 +69,59 @@ const NewSetPasswordScreen = ({navigation}: Props) => {
     setShowPasswordSecond(!ShowPasswordSecond);
   };
 
-  const Submit = () => {
+  const Submit = async () => {
     let newErrors: Errors = {};
     let isValid = true;
 
     if (!formData.password || formData.password.length < 6) {
-      newErrors.password = 'new password  6 characters';
+      newErrors.password = 'New password must be at least 6 characters';
       isValid = false;
     }
     if (!formData.newpassword || formData.newpassword.length < 6) {
-      newErrors.newpassword = 'comfirm password  6 characters';
+      newErrors.newpassword = 'Confirm password must be at least 6 characters';
       isValid = false;
     }
 
     if (formData.password !== formData.newpassword) {
       newErrors.newpassword = 'Passwords do not match';
-
       isValid = false;
     }
 
     setErrors(newErrors);
     if (isValid) {
-      navigation.navigate('LoginScreen');
+      try {
+        const actionResult = await dispatch(
+          setPasswordSlice({
+            id: data, // Use 'data' as the 'id'
+            password: formData.password,
+            password_confirmation: formData.newpassword,
+            data1: data,
+          }),
+        ).unwrap();
+
+        if (actionResult && actionResult.status === 'success') {
+          ToastAndroid.showWithGravity(
+            'Set new password Successfully.',
+            ToastAndroid.SHORT,
+            ToastAndroid.TOP,
+          );
+
+          navigation.navigate('LoginScreen');
+        } else {
+          ToastAndroid.showWithGravity(
+            'Something went wrong.',
+            ToastAndroid.LONG,
+            ToastAndroid.TOP,
+          );
+        }
+      } catch (error: any) {
+        ToastAndroid.showWithGravity(
+          error?.message || 'Failed to set password. Please try again.',
+          ToastAndroid.LONG,
+          ToastAndroid.TOP,
+        );
+        console.error('New password error:', error);
+      }
     }
     return isValid;
   };
@@ -96,6 +133,7 @@ const NewSetPasswordScreen = ({navigation}: Props) => {
       <ScrollView contentContainerStyle={styles.scrollViewContent}>
         <View style={styles.secondContainer}>
           <Text style={styles.loginText}>Set New Password</Text>
+
           <InputField
             value={formData.password}
             onChangeText={text => handleInputChange('password', text)}
@@ -141,7 +179,7 @@ const NewSetPasswordScreen = ({navigation}: Props) => {
             }
             rightIcon={
               <TouchableOpacity onPress={toggleShowPasswordSecond}>
-                {ShowPassword ? (
+                {ShowPasswordSecond ? (
                   <Svg.Eye
                     height={responsiveScreenHeight(5)}
                     width={responsiveScreenWidth(7)}

@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  ToastAndroid,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -18,39 +19,47 @@ import {
   responsiveScreenHeight,
   responsiveScreenWidth,
 } from 'react-native-responsive-dimensions';
+
 import CustomButton from '../../components/CustomButton';
 import {Colors} from '../../theme/Colors';
 import {Fonts} from '../../assets/Fonts';
 import {FontSizes} from '../../theme/FontSizes';
-import {AuthStackParamList} from '../../navigator/AuthStackNavigator';
-import {useAppDispatch} from '../../redux/hook';
-import {registerUser} from '../../redux/AuthStackReducer/RegisterSlice';
+import {DrawerParamList} from '../../navigator/DrawerNavigater';
+import {editProfileUser} from '../../redux/AuthStackReducer/editProfileSlice';
+import {useAppDispatch, useAppSelector} from '../../redux/hook';
+import {RootState} from '../../redux/store';
+import {setUser} from '../../redux/userSlice';
 
 type OtpScreenNavigationProp = StackNavigationProp<
-  AuthStackParamList,
-  'OtpScreen'
+  DrawerParamList,
+  'ProfileMobileVerifyScreen'
 >;
-
+type ContactInfo = {
+  mobile: string;
+  email: string;
+  address: string;
+};
 type Props = {
   navigation: OtpScreenNavigationProp;
   route: {
     params: {
-      navigationData: any;
+      contact: ContactInfo;
     };
   };
 };
 
-const OtpScreen = ({navigation, route}: Props) => {
-  const {navigationData} = route.params;
+const ProfileMobileVerifyScreen = ({navigation, route}: Props) => {
+  const {contact} = route.params;
   const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
   const [confirm, setConfirm] = useState<any>(null);
   const [timer, setTimer] = useState<number>(60);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isResending, setIsResending] = useState<boolean>(false);
   const inputRefs = useRef<Array<TextInput | null>>([]);
+  const user = useAppSelector((state: RootState) => state.user);
+  const dispatch = useAppDispatch();
 
   // const navigation = useNavigation();
-  const dispatch = useAppDispatch();
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -62,6 +71,7 @@ const OtpScreen = ({navigation, route}: Props) => {
 
     return unsubscribe;
   }, [navigation]);
+
   useEffect(() => {
     const backHandler = BackHandler.addEventListener(
       'hardwareBackPress',
@@ -77,9 +87,9 @@ const OtpScreen = ({navigation, route}: Props) => {
   const sendOTP = async () => {
     try {
       setIsResending(true);
-
+      console.log(contact);
       const confirmation = await auth().signInWithPhoneNumber(
-        '+91' + navigationData.contact,
+        '+91' + contact.mobile,
       );
       console.log('confirmation');
       setConfirm(confirmation);
@@ -122,17 +132,26 @@ const OtpScreen = ({navigation, route}: Props) => {
       setIsLoading(true);
       await confirm.confirm(otpString);
       dispatch(
-        registerUser({
-          username: navigationData.username,
-          password: navigationData.password,
-          email: navigationData.email,
-          mobile: navigationData.contact,
-          address: navigationData.address,
+        editProfileUser({
+          email: contact.email,
           country_code: '+91',
+          mobile: contact.mobile,
+          address: contact.address,
+          id: user.id,
         }),
       );
-
-      navigation.navigate('LoginScreen');
+      dispatch(
+        setUser({
+          email: contact.email,
+          mobile: contact.mobile,
+          address: contact.address,
+          username: user.username,
+          password: user.password,
+          id: user.id,
+        }),
+      );
+      ToastAndroid.show('Mobile Namber update', ToastAndroid.LONG);
+      navigation.navigate('Logout');
     } catch (error) {
       console.error('Error verifying OTP:', error);
       Alert.alert('Error', 'Invalid OTP. Please try again.');
@@ -159,8 +178,9 @@ const OtpScreen = ({navigation, route}: Props) => {
         <View style={styles.secondContainer}>
           <Text style={styles.otpText}>OTP Verification</Text>
           <Text style={styles.otpTextNamberShow}>
-            OTP send this number : {navigationData.contact.slice(0, 20)}
+            OTP send this number : {contact.mobile}
           </Text>
+
           <View style={styles.otpContainer}>
             {otp.map((digit, index) => (
               <TextInput
@@ -193,7 +213,6 @@ const OtpScreen = ({navigation, route}: Props) => {
               onPress={verifyOTP}
             />
           )}
-
           <TouchableOpacity
             onPress={resendOtp}
             disabled={timer > 0 || isResending}>
@@ -275,109 +294,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default OtpScreen;
-
-// import React, {useState, useEffect} from 'react';
-// import {View, Text, TextInput, Button, Alert} from 'react-native';
-// import auth, {FirebaseAuthTypes} from '@react-native-firebase/auth';
-// import {StackNavigationProp} from '@react-navigation/stack';
-// import {AuthStackParamList} from '../../navigator/AuthStackNavigator';
-// import {useNavigation} from '@react-navigation/native';
-
-// type OtpScreenNavigationProp = StackNavigationProp<
-//   AuthStackParamList,
-//   'OtpScreen'
-// >;
-
-// type Props = {
-//   navigation: OtpScreenNavigationProp;
-//   route: {
-//     params: {
-//       contact: string;
-//     };
-//   };
-// };
-
-// const OtpScreen = ({route}: Props) => {
-//   const {contact} = route.params;
-//   const [otp, setOtp] = useState('');
-
-//   const [confirm, setConfirm] =
-//     useState<FirebaseAuthTypes.ConfirmationResult | null>(null);
-//   const [timer, setTimer] = useState(60);
-//   const navigation = useNavigation();
-
-//   useEffect(() => {
-//     const unsubscribe = navigation.addListener('focus', () => {
-//       try {
-//         sendOtp();
-//         setTimer(60);
-//       } catch (error) {}
-//     });
-
-//     return unsubscribe;
-//   }, [navigation]);
-
-//   useEffect(() => {
-//     const interval = setInterval(() => {
-//       if (timer > 0) {
-//         setTimer(timer - 1);
-//       }
-//     }, 1000);
-
-//     return () => {
-//       clearInterval(interval);
-//     };
-//   }, [timer]);
-
-//   const sendOtp = async () => {
-//     try {
-//       console.log(contact);
-//       const confirmation = await auth().signInWithPhoneNumber(contact);
-//       console.log('confirmation');
-//       setConfirm(confirmation);
-//     } catch (error) {
-//       Alert.alert('Error', 'Failed to send OTP. Please try again.');
-//     }
-//   };
-
-//   const confirmOtp = async () => {
-//     try {
-//       if (confirm) {
-//         await confirm.confirm(otp);
-//         Alert.alert('Success', 'Phone number verified successfully!');
-//         // Navigate to the next screen here
-//       }
-//     } catch (error) {
-//       Alert.alert('Error', 'Invalid OTP. Please try again.');
-//     }
-//   };
-
-//   const resendOtp = () => {
-//     sendOtp();
-//     setTimer(60);
-//   };
-
-//   return (
-//     <View style={{padding: 20}}>
-//       <Text>Enter the OTP sent to {contact}</Text>
-//       <TextInput
-//         placeholder="Enter OTP"
-//         value={otp}
-//         onChangeText={setOtp}
-//         keyboardType="numeric"
-//         style={{
-//           borderColor: '#000',
-//           borderWidth: 1,
-//           padding: 10,
-//           marginVertical: 20,
-//         }}
-//       />
-//       <Button title="Verify OTP" onPress={confirmOtp} />
-//       <Text>Resend OTP in {timer} seconds</Text>
-//       <Button title="Resend OTP" onPress={resendOtp} disabled={timer !== 0} />
-//     </View>
-//   );
-// };
-
-// export default OtpScreen;
+export default ProfileMobileVerifyScreen;

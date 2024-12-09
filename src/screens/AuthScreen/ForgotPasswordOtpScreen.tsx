@@ -35,12 +35,13 @@ type Props = {
   route: {
     params: {
       contact: string;
+      data: string;
     };
   };
 };
 
 const ForgotPasswordOtpScreen = ({navigation, route}: Props) => {
-  const {contact} = route.params;
+  const {contact, data} = route.params;
   const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
   const [confirm, setConfirm] = useState<any>(null);
   const [timer, setTimer] = useState<number>(60);
@@ -118,7 +119,7 @@ const ForgotPasswordOtpScreen = ({navigation, route}: Props) => {
     try {
       setIsLoading(true);
       await confirm.confirm(otpString);
-      navigation.navigate('NewSetPasswordScreen');
+      navigation.navigate('NewSetPasswordScreen', {data: data});
     } catch (error) {
       console.error('Error verifying OTP:', error);
       Alert.alert('Error', 'Invalid OTP. Please try again.');
@@ -147,6 +148,7 @@ const ForgotPasswordOtpScreen = ({navigation, route}: Props) => {
           <Text style={styles.otpTextNamberShow}>
             OTP send this number : {contact.slice(3, 25)}
           </Text>
+
           <View style={styles.otpContainer}>
             {otp.map((digit, index) => (
               <TextInput
@@ -179,7 +181,6 @@ const ForgotPasswordOtpScreen = ({navigation, route}: Props) => {
               onPress={verifyOTP}
             />
           )}
-
           <TouchableOpacity
             onPress={resendOtp}
             disabled={timer > 0 || isResending}>

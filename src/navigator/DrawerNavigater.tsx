@@ -11,6 +11,7 @@ import KysScreen from '../screens/KysScreen';
 import NetInfo from '@react-native-community/netinfo';
 import CheckInternet from '../screens/CheckInternet';
 import OtpVeriftProfileScreen from '../screens/OtpVeriftProfileScreen';
+import ProfileMobileVerifyScreen from '../screens/AuthScreen/ProfileMobileVerifyScreen';
 
 export type DrawerParamList = {
   Home: undefined;
@@ -20,6 +21,9 @@ export type DrawerParamList = {
   ContactUs: undefined;
   Logout: undefined;
   OtpVeriftProfileScreen: {
+    contact: string;
+  };
+  ProfileMobileVerifyScreen: {
     contact: string;
   };
 };
@@ -62,6 +66,16 @@ const DrawerNavigator: React.FC = () => {
           <Drawer.Screen
             name="OtpVeriftProfileScreen"
             component={OtpVeriftProfileScreen}
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Drawer.Screen
+            name="ProfileMobileVerifyScreen"
+            component={ProfileMobileVerifyScreen}
+            options={{
+              headerShown: false,
+            }}
           />
         </Drawer.Navigator>
       ) : (

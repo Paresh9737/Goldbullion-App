@@ -1,15 +1,16 @@
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  ToastAndroid,
   TouchableOpacity,
   View,
 } from 'react-native';
 import React, {useState} from 'react';
 import {StackNavigationProp} from '@react-navigation/stack';
-
 import {Colors} from '../../theme/Colors';
 import {
   responsiveScreenHeight,
@@ -20,16 +21,18 @@ import {Svg} from '../../helper/SvgProvider';
 import {FontSizes} from '../../theme/FontSizes';
 import CustomButton from '../../components/CustomButton';
 import {Fonts} from '../../assets/Fonts';
-import {useDispatch} from 'react-redux';
-import {setUser} from '../../redux/userSlice';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {AuthStackParamList} from '../../navigator/AuthStackNavigator';
-
+import {useAppDispatch, useAppSelector} from '../../redux/hook';
+import {
+  registerUser,
+  resetRegistration,
+} from '../../redux/AuthStackReducer/RegisterSlice';
+import FlashMessage, {showMessage} from 'react-native-flash-message';
+import CustomFlashMessage from '../../components/CustomFlashMessage';
 type RegisterScreenNavigationProp = StackNavigationProp<
   AuthStackParamList,
   'RegisterScreen'
 >;
-
 type Props = {
   navigation: RegisterScreenNavigationProp;
 };
@@ -37,15 +40,14 @@ type FormData = {
   username: string;
   password: string;
   email: string;
-  contact: any;
-  fiemName: string;
-  gst: string;
-  city: string;
+  contact: string;
+  country_code: string;
+  address: string;
 };
 type Errors = {
   [K in keyof FormData]?: string;
 };
-// Phone number ની લંબાઈ નક્કી કરવા માટે કૉન્સ્ટન્ટ્સ
+
 const MIN_LENGTH = 10;
 const MAX_LENGTH = 10;
 
@@ -56,12 +58,14 @@ const RegisterScreen = ({navigation}: Props) => {
     password: '',
     email: '',
     contact: '',
-    fiemName: '',
-    gst: '',
-    city: '',
+    country_code: '+91',
+    address: '',
   });
   const [errors, setErrors] = useState<Errors>({});
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
+  const isLoading = useAppSelector(
+    state => state.ragister.status === 'loading',
+  );
 
   const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData(prev => ({...prev, [field]: value}));
@@ -70,7 +74,7 @@ const RegisterScreen = ({navigation}: Props) => {
     }
   };
 
-  const handleRegister = (): boolean => {
+  const handleRegister = async () => {
     let newErrors: Errors = {};
     let isValid = true;
 
@@ -84,23 +88,12 @@ const RegisterScreen = ({navigation}: Props) => {
       isValid = false;
     }
 
-    // if (
-    //   !formData.contact ||
-    //   formData.contact.length < MIN_LENGTH ||
-    //   formData.contact.length > MAX_LENGTH
-    // ) {
-    //   newErrors.contact = `Contact must be between ${MIN_LENGTH} and ${MAX_LENGTH} digits`;
-    //   isValid = false;
-    // }
-
-    if (!formData.contact) {
-      newErrors.contact = 'phone is required';
-      isValid = false;
-    } else if (
+    if (
+      !formData.contact ||
       formData.contact.length < MIN_LENGTH ||
       formData.contact.length > MAX_LENGTH
     ) {
-      newErrors.contact = `phone must be between ${MIN_LENGTH} digits`;
+      newErrors.contact = `phone must be between ${MIN_LENGTH} and ${MAX_LENGTH} digits`;
       isValid = false;
     }
 
@@ -112,50 +105,69 @@ const RegisterScreen = ({navigation}: Props) => {
       isValid = false;
     }
 
-    // if (!formData.email || !/\S+@\S+\.\S+/.test(formData.email)) {
-    //   newErrors.email = 'Please enter a valid email address';
-    //   isValid = false;
-    // }
-
-    if (!formData.city || formData.city.length < 2) {
-      newErrors.city = 'City name must be at least 2 characters';
+    if (!formData.address || formData.address.length < 4) {
+      newErrors.address = 'Username must be at least 4 characters';
       isValid = false;
     }
 
     setErrors(newErrors);
+
     if (isValid) {
-      // Prepend +91 to the contact number
-      const formattedContact = `+91${formData.contact}`;
+      try {
+        const result = await dispatch(
+          registerUser({
+            username: formData.username,
+            password: formData.password,
+            email: formData.email,
+            country_code: formData.country_code,
+            mobile: formData.contact,
+            address: formData.address,
+          }),
+        ).unwrap();
 
-      const userData = {
-        username: formData.username,
-        password: formData.password,
-        contact: formData.contact,
-        email: formData.email,
-        fiemName: formData.fiemName,
-        gst: formData.gst,
-        city: formData.city,
-      };
-      dispatch(setUser(userData));
-      console.log('userData', userData);
-      AsyncStorage.setItem('user', JSON.stringify(userData));
-      setFormData({
-        username: '',
-        password: '',
-        email: '',
-        contact: '',
-        fiemName: '',
-        gst: '',
-        city: '',
-      });
+        if (result.status === 'success') {
+          navigation.navigate('OtpScreen', {
+            navigationData: formData,
+          });
 
-      navigation.navigate('OtpScreen', {
-        contact: formattedContact,
-      });
+          ToastAndroid.showWithGravity(
+            'Registration success',
+            ToastAndroid.SHORT,
+            ToastAndroid.TOP,
+          );
+
+          // Reset form
+          setFormData({
+            username: '',
+            password: '',
+            email: '',
+            contact: '',
+            country_code: '+91',
+            address: '',
+          });
+
+          // Reset registration state
+          dispatch(resetRegistration());
+        } else {
+          showMessage({
+            message: 'Registration Failed',
+            description: result.message || 'Please try again',
+            type: 'danger',
+            duration: 3000,
+          });
+        }
+      } catch (error: any) {
+        showMessage({
+          message: 'Error',
+          description: error.message || 'An error occurred during registration',
+          type: 'danger',
+          duration: 3000,
+        });
+      }
     }
+
     return isValid;
   };
-
   const toggleShowPassword = () => {
     setShowPassword(!ShowPassword);
   };
@@ -163,9 +175,11 @@ const RegisterScreen = ({navigation}: Props) => {
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}>
+      <CustomFlashMessage position="top" />
       <ScrollView contentContainerStyle={styles.scrollViewContent}>
         <View style={styles.secondContainer}>
           <Text style={styles.RegisterText}>Signup</Text>
+
           {/* username  */}
           <InputField
             value={formData.username}
@@ -234,6 +248,7 @@ const RegisterScreen = ({navigation}: Props) => {
             value={formData.email}
             onChangeText={text => handleInputChange('email', text)}
             placeholder="Email"
+            keyboardType="email-address"
             leftIcon={
               <Svg.Email
                 height={responsiveScreenHeight(5)}
@@ -246,9 +261,9 @@ const RegisterScreen = ({navigation}: Props) => {
           ) : null}
           {/* Filad Name  */}
           <InputField
-            value={formData.fiemName}
-            onChangeText={text => handleInputChange('fiemName', text)}
-            placeholder="Firm Name"
+            value={formData.address}
+            onChangeText={text => handleInputChange('address', text)}
+            placeholder="address"
             leftIcon={
               <Svg.Use
                 height={responsiveScreenHeight(5)}
@@ -256,44 +271,19 @@ const RegisterScreen = ({navigation}: Props) => {
               />
             }
           />
-          {errors.fiemName ? (
-            <Text style={styles.errorText}>{errors.fiemName}</Text>
+          {errors.address ? (
+            <Text style={styles.errorText}>{errors.address}</Text>
           ) : null}
-          {/* Gst  */}
-          <InputField
-            value={formData.gst}
-            onChangeText={text => handleInputChange('gst', text)}
-            placeholder="GST IN"
-            leftIcon={
-              <Svg.GST
-                height={responsiveScreenHeight(5)}
-                width={responsiveScreenWidth(6)}
-              />
-            }
-          />
-          {errors.gst ? (
-            <Text style={styles.errorText}>{errors.gst}</Text>
-          ) : null}
-          {/* City  */}
-          <InputField
-            value={formData.city}
-            onChangeText={text => handleInputChange('city', text)}
-            placeholder="City"
-            leftIcon={
-              <Svg.City
-                height={responsiveScreenHeight(5)}
-                width={responsiveScreenWidth(6)}
-              />
-            }
-          />
-          {errors.city ? (
-            <Text style={styles.errorText}>{errors.city}</Text>
-          ) : null}
+
           <CustomButton
             title="VERIFY"
             onPress={handleRegister}
-            buttonStyle={{backgroundColor: Colors.Yellow}}
+            buttonStyle={{
+              backgroundColor: Colors.Yellow,
+              opacity: isLoading ? 0.7 : 1,
+            }}
             textStyle={{color: Colors.black}}
+            disabled={isLoading}
           />
           <View style={styles.accountContainer}>
             <Text style={styles.addAccountText}>Don't have an account? </Text>
