@@ -24,7 +24,7 @@ export type DrawerParamList = {
     contact: string;
   };
   ProfileMobileVerifyScreen: {
-    contact: string;
+    contact: any;
   };
 };
 

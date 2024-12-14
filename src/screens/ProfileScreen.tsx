@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useContext} from 'react';
+import React, {useState, useEffect, useContext, useCallback} from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import {
 import {useAppDispatch, useAppSelector} from '../redux/hook';
 import {RootState} from '../redux/store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {setUser} from '../redux/userSlice';
+import {logoutUser, setUser} from '../redux/userSlice';
 import {AuthContext} from '../navigator/contaxt/AuthContaxt';
 import {Colors} from '../theme/Colors';
 import CustomAlert from '../components/CustomAlertALLScreen';
@@ -47,8 +47,12 @@ type FormData = {
 type Errors = {
   [K in keyof FormData]?: string;
 };
-
-const ProfileScreen = ({navigation}: any) => {
+type ProfileScreenProps = {
+  navigation: {
+    navigate: (screen: string, params?: any) => void;
+  };
+};
+const ProfileScreen = ({navigation}: ProfileScreenProps) => {
   const {logout} = useContext(AuthContext);
   const [loading, setLoading] = useState(true);
   const user = useAppSelector((state: RootState) => state.user);
@@ -57,7 +61,7 @@ const ProfileScreen = ({navigation}: any) => {
   const [modalVisible, setModalVisible] = useState(false);
 
   const [formData, setFormData] = useState({
-    email: user.email || '',
+    email: user?.email || '',
     mobile: user?.mobile || '',
     address: user?.address || '',
   });
@@ -70,7 +74,7 @@ const ProfileScreen = ({navigation}: any) => {
     }
   };
 
-  const validateForm = () => {
+  const validateForm = useCallback(() => {
     const newErrors: Errors = {};
 
     // Email validation
@@ -91,22 +95,18 @@ const ProfileScreen = ({navigation}: any) => {
     if (!formData.address) {
       newErrors.address = 'Address is required';
     } else if (formData.address.length < 4) {
-      newErrors.address = 'Address must be at least 10 characters';
+      newErrors.address = 'Address must be at least 4 characters';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
+  }, [formData]);
 
-  const handleRegister = async (): Promise<boolean> => {
+  const handleRegister = (): void => {
     if (validateForm()) {
       const updatedUserData = {
-        mobile: formData.mobile,
-        email: formData.email,
-        address: formData.address,
-        username: user.username,
-        password: user.password,
-        id: user.id,
+        ...user,
+        ...formData,
       };
 
       try {
@@ -116,7 +116,7 @@ const ProfileScreen = ({navigation}: any) => {
             contact: updatedUserData,
           });
         } else {
-          await dispatch(setUser(updatedUserData));
+          dispatch(setUser(updatedUserData));
           loadUserData();
           dispatch(
             editProfileUser({
@@ -131,22 +131,39 @@ const ProfileScreen = ({navigation}: any) => {
         }
 
         setModalVisible(false);
-        return true;
       } catch (error) {
-        console.error('Error updating profile:', error);
-        ToastAndroid.show('Failed to update profile', ToastAndroid.LONG);
-        return false;
+        showMessage({
+          message: 'Update Failed',
+          description:
+            error instanceof Error
+              ? error.message
+              : 'An unexpected error occurred',
+          type: 'danger',
+        });
       }
     }
-
-    return false;
   };
 
   const loadUserData = async () => {
     try {
-      const userData = await AsyncStorage.getItem('user');
-      if (userData) {
-        dispatch(setUser(JSON.parse(userData)));
+      const userDataString = await AsyncStorage.getItem('user');
+      console.log('Raw user data:', userDataString);
+
+      if (userDataString) {
+        try {
+          const userData = JSON.parse(userDataString);
+          if (userData && typeof userData === 'object') {
+            dispatch(setUser(userData));
+          } else {
+            console.error('Invalid user data format');
+            await AsyncStorage.removeItem('user');
+            dispatch(logoutUser());
+          }
+        } catch (parseError) {
+          console.error('Error parsing user data:', parseError);
+          await AsyncStorage.removeItem('user');
+          dispatch(logoutUser());
+        }
       }
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -154,7 +171,6 @@ const ProfileScreen = ({navigation}: any) => {
       setLoading(false);
     }
   };
-
   useEffect(() => {
     loadUserData();
   }, []);
@@ -217,6 +233,17 @@ const ProfileScreen = ({navigation}: any) => {
       },
     });
   };
+  const opanEditProfile = () => {
+    setFormData({
+      email: user?.email || '',
+      mobile: user?.mobile || '',
+      address: user?.address || '',
+    });
+    setModalVisible(true);
+    const newErrors: Errors = {};
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   if (loading) {
     return (
@@ -274,7 +301,7 @@ const ProfileScreen = ({navigation}: any) => {
           <TouchableOpacity
             style={styles.button}
             onPress={() => {
-              setModalVisible(true);
+              opanEditProfile();
             }}>
             <Text style={styles.buttonText}>Edit Profile</Text>
           </TouchableOpacity>
@@ -297,7 +324,9 @@ const ProfileScreen = ({navigation}: any) => {
 
           <TouchableOpacity
             style={[styles.button, styles.logoutButton]}
-            onPress={handleLogout}>
+            onPress={handleLogout}
+            accessibilityLabel="Logout"
+            accessibilityHint="Logs you out of the application">
             <Text style={[styles.buttonText, styles.logoutButtonText]}>
               Logout
             </Text>

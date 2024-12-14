@@ -9,36 +9,35 @@ import {
   ScrollView,
   ToastAndroid,
 } from 'react-native';
+
 import {StackNavigationProp} from '@react-navigation/stack';
+import {useFocusEffect} from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {showMessage} from 'react-native-flash-message';
+// Components
+import InputField from '../../components/InputFild';
+import CustomButton from '../../components/CustomButton';
+import CustomFlashMessage from '../../components/CustomFlashMessage';
+import {Svg} from '../../helper/SvgProvider';
+// Hooks and Utils
+import {AuthContext} from '../../navigator/contaxt/AuthContaxt';
+import {useAppDispatch} from '../../redux/hook';
+import {loginUser} from '../../redux/AuthStackReducer/authSlice';
+import {setUser} from '../../redux/userSlice';
+// Types and Constants
+import {AuthStackParamList} from '../../navigator/AuthStackNavigator';
 import {Colors} from '../../theme/Colors';
 import {FontSizes} from '../../theme/FontSizes';
 import {
   responsiveScreenHeight,
   responsiveScreenWidth,
 } from 'react-native-responsive-dimensions';
-import InputField from '../../components/InputFild';
-import {Svg} from '../../helper/SvgProvider';
-import CustomButton from '../../components/CustomButton';
-import {
-  AuthStackNavigationProp,
-  AuthStackParamList,
-} from '../../navigator/AuthStackNavigator';
 import {Fonts} from '../../assets/Fonts';
-import {AuthContext} from '../../navigator/contaxt/AuthContaxt';
-import {useFocusEffect} from '@react-navigation/native';
-import {useAppDispatch, useAppSelector} from '../../redux/hook';
-import {loginUser} from '../../redux/AuthStackReducer/authSlice';
-import {setUser} from '../../redux/userSlice';
-import {showMessage} from 'react-native-flash-message';
-import CustomFlashMessage from '../../components/CustomFlashMessage';
-
-type LoginScreenNavigationProp = StackNavigationProp<
-  AuthStackParamList,
-  'RegisterScreen'
->;
-
-// Updated FormData type to include all fields
-type FormData = {
+import {isValidPassword, isValidUsername} from '../../utils/Validator';
+interface LoginScreenProps {
+  navigation: StackNavigationProp<AuthStackParamList, 'RegisterScreen'>;
+}
+interface LoginFormData {
   username: string;
   password: string;
   email?: string;
@@ -46,6 +45,16 @@ type FormData = {
   country_code?: string;
   address?: string;
   id?: string;
+}
+
+const INITIAL_FORM_STATE: LoginFormData = {
+  username: '',
+  password: '',
+  email: '',
+  contact: '',
+  country_code: '+91',
+  address: '',
+  id: '',
 };
 
 type Errors = {
@@ -53,43 +62,23 @@ type Errors = {
   password?: string;
 };
 
-type Props = {
-  navigation: AuthStackNavigationProp;
-};
-
-const LoginScreen: React.FC<Props> = ({navigation}) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
   const {login} = useContext(AuthContext);
 
   const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState<FormData>({
-    username: '',
-    password: '',
-    email: '',
-    contact: '',
-    country_code: '+91',
-    address: '',
-    id: '',
-  });
+  const [formData, setFormData] = useState<LoginFormData>(INITIAL_FORM_STATE);
   const [errors, setErrors] = useState<Errors>({});
   const dispatch = useAppDispatch();
 
   // Reset input fields and errors when screen is focused
   useFocusEffect(
     useCallback(() => {
-      setFormData({
-        username: '',
-        password: '',
-        email: '',
-        contact: '',
-        country_code: '+91',
-        address: '',
-        id: '',
-      });
+      setFormData(INITIAL_FORM_STATE);
       setErrors({});
     }, []),
   );
 
-  const handleInputChange = (field: keyof FormData, value: string) => {
+  const handleInputChange = (field: keyof LoginFormData, value: string) => {
     setFormData(prevData => ({...prevData, [field]: value}));
     if (errors[field as keyof Errors]) {
       setErrors(prevErrors => ({...prevErrors, [field as keyof Errors]: ''}));
@@ -102,19 +91,16 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
     const newErrors: Errors = {};
     let valid = true;
 
-    if (!formData.username) {
-      newErrors.username = 'Username is required';
-      valid = false;
-    } else if (formData.username.length < 4) {
-      newErrors.username = 'Username must be at least 4 characters';
+    const usernameValidation = isValidUsername(formData.username);
+    if (usernameValidation !== '') {
+      newErrors.username = usernameValidation;
       valid = false;
     }
 
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-      valid = false;
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+    // Password validation
+    const passwordValidation = isValidPassword(formData.password);
+    if (passwordValidation !== '') {
+      newErrors.password = passwordValidation;
       valid = false;
     }
 
@@ -122,50 +108,37 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
 
     if (valid) {
       try {
-        const result = await dispatch(
-          loginUser({
-            username: formData.username,
-            password: formData.password,
-            email: formData.email,
-            country_code: formData.country_code,
-            mobile: formData.contact,
-            address: formData.address,
-            id: formData.id,
-          }),
-        ).unwrap();
+        const result = await dispatch(loginUser(formData)).unwrap();
 
         if (result.status === 'success') {
-          dispatch(
-            setUser({
-              username: result.data.username,
-              password: result.data.password,
-              email: result.data.email,
-              mobile: result.data.mobile,
-              address: result.data.address,
-              id: result.data.id,
-            }),
-          );
-          login();
+          const userData = {
+            username: result.data.username,
+            password: result.data.password,
+            email: result.data.email,
+            mobile: result.data.mobile,
+            address: result.data.address,
+            id: result.data.id,
+          };
 
-          // Login successful
+          dispatch(setUser(userData));
+
+          const token = result.data.token || String(result.data.id);
+          await AsyncStorage.setItem('userToken', token);
+          await AsyncStorage.setItem('user', 'userToken');
+
+          // Update login call to pass both token and user data
+          await login(token, userData);
+
           ToastAndroid.showWithGravity(
             'Login Done',
             ToastAndroid.SHORT,
             ToastAndroid.TOP,
           );
 
-          // Reset form
-          setFormData({
-            username: '',
-            password: '',
-            email: '',
-            contact: '',
-            country_code: '+91',
-            address: '',
-          });
+          setFormData(INITIAL_FORM_STATE);
         } else {
           showMessage({
-            message: 'error',
+            message: 'Error',
             description: result.message || 'Please try again',
             type: 'danger',
             duration: 3000,
@@ -186,9 +159,11 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}>
       <CustomFlashMessage position="top" />
+
       <ScrollView contentContainerStyle={styles.scrollViewContent}>
         <View style={styles.secondContainer}>
           <Text style={styles.loginText}>Login</Text>
+          {/* username Input Fild  */}
           <InputField
             value={formData.username}
             onChangeText={text => handleInputChange('username', text)}
@@ -203,6 +178,7 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
           {errors.username && (
             <Text style={styles.errorText}>{errors.username}</Text>
           )}
+          {/* password Input Fild  */}
           <InputField
             value={formData.password}
             onChangeText={text => handleInputChange('password', text)}
@@ -233,6 +209,7 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
           {errors.password && (
             <Text style={styles.errorText}>{errors.password}</Text>
           )}
+          {/* login button  */}
           <CustomButton
             title="LOGIN"
             onPress={handleLogin}
@@ -246,6 +223,7 @@ const LoginScreen: React.FC<Props> = ({navigation}) => {
               Forgot Password ?
             </Text>
           </TouchableOpacity>
+          {/* RegisterScreen naviagtin flow  */}
           <View style={styles.accountContainer}>
             <Text style={styles.addAccountText}>Don't have an account? </Text>
             <TouchableOpacity

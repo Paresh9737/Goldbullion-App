@@ -29,6 +29,8 @@ import {editProfileUser} from '../../redux/AuthStackReducer/editProfileSlice';
 import {useAppDispatch, useAppSelector} from '../../redux/hook';
 import {RootState} from '../../redux/store';
 import {setUser} from '../../redux/userSlice';
+import {useCustomAlert} from '../../components/useCustomAlertAllScreen';
+import CustomAlert from '../../components/CustomAlertALLScreen';
 
 type OtpScreenNavigationProp = StackNavigationProp<
   DrawerParamList,
@@ -58,9 +60,7 @@ const ProfileMobileVerifyScreen = ({navigation, route}: Props) => {
   const inputRefs = useRef<Array<TextInput | null>>([]);
   const user = useAppSelector((state: RootState) => state.user);
   const dispatch = useAppDispatch();
-
-  // const navigation = useNavigation();
-
+  const {visible, alertConfig, showAlert, hideAlert} = useCustomAlert();
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       try {
@@ -76,12 +76,12 @@ const ProfileMobileVerifyScreen = ({navigation, route}: Props) => {
     const backHandler = BackHandler.addEventListener(
       'hardwareBackPress',
       () => {
-        navigation.goBack(); // Navigate back when the back button is pressed
-        return true; // Prevent default behavior (exiting the app)
+        navigation.goBack();
+        return true;
       },
     );
 
-    return () => backHandler.remove(); // Clean up the event listener on unmount
+    return () => backHandler.remove();
   }, [navigation]);
 
   const sendOTP = async () => {
@@ -95,7 +95,15 @@ const ProfileMobileVerifyScreen = ({navigation, route}: Props) => {
       setConfirm(confirmation);
       setIsResending(false);
     } catch (error) {
-      Alert.alert('Error', 'Failed to send OTP. Please try again.');
+      showAlert({
+        title: 'Error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Failed to send OTP. Please try again.',
+        confirmText: 'OK',
+        onConfirm: hideAlert,
+      });
     }
   };
 
@@ -118,13 +126,23 @@ const ProfileMobileVerifyScreen = ({navigation, route}: Props) => {
 
   const verifyOTP = async () => {
     if (!confirm) {
-      Alert.alert('Error', 'Please request OTP first');
+      showAlert({
+        title: 'Error',
+        message: 'OTP request timed out. Please resend.',
+        confirmText: 'OK',
+        onConfirm: hideAlert,
+      });
       return;
     }
 
     const otpString = otp.join('');
-    if (otpString.length !== 6) {
-      Alert.alert('Error', 'Please enter a valid 6-digit OTP');
+    if (!/^\d{6}$/.test(otpString)) {
+      showAlert({
+        title: 'Invalid OTP',
+        message: 'Please enter a valid 6-digit OTP',
+        confirmText: 'OK',
+        onConfirm: hideAlert,
+      });
       return;
     }
 
@@ -139,7 +157,7 @@ const ProfileMobileVerifyScreen = ({navigation, route}: Props) => {
           address: contact.address,
           id: user.id,
         }),
-      );
+      ).unwrap();
       dispatch(
         setUser({
           email: contact.email,
@@ -150,26 +168,41 @@ const ProfileMobileVerifyScreen = ({navigation, route}: Props) => {
           id: user.id,
         }),
       );
-      ToastAndroid.show('Mobile Namber update', ToastAndroid.LONG);
+      // Platform-specific toast
+      if (Platform.OS === 'android') {
+        ToastAndroid.show('Mobile Number Updated', ToastAndroid.LONG);
+      } else if (Platform.OS === 'ios') {
+        // Add iOS equivalent notification
+        Alert.alert('Success', 'Mobile Number Updated');
+      }
       navigation.navigate('Logout');
     } catch (error) {
-      console.error('Error verifying OTP:', error);
-      Alert.alert('Error', 'Invalid OTP. Please try again.');
+      showAlert({
+        title: 'Verification Failed',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Invalid OTP. Please try again.',
+        confirmText: 'OK',
+        onConfirm: hideAlert,
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleOtpChange = (index: number, value: string) => {
+    // Validate input to only allow numeric characters
+    const numericValue = value.replace(/[^0-9]/g, '');
+
     const newOtp = [...otp];
-    newOtp[index] = value;
+    newOtp[index] = numericValue;
     setOtp(newOtp);
 
-    if (value !== '' && index < 5) {
+    if (numericValue !== '' && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
   };
-
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -229,6 +262,14 @@ const ProfileMobileVerifyScreen = ({navigation, route}: Props) => {
             </Text>
           </TouchableOpacity>
         </View>
+        <CustomAlert
+          visible={visible}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          confirmText={alertConfig.confirmText}
+          onConfirm={alertConfig.onConfirm}
+          onCancel={hideAlert}
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );

@@ -1,4 +1,4 @@
-import {createSlice, createAsyncThunk, PayloadAction} from '@reduxjs/toolkit';
+import {createSlice, createAsyncThunk} from '@reduxjs/toolkit';
 import {APIClient} from '../../api/ApiClient';
 
 // Interface for login payload
@@ -19,6 +19,7 @@ export interface AuthState {
     email: string | null;
     mobile: string | null;
     address: string | null;
+    password: string | null;
   } | null;
   id: string | null;
   status: 'idle' | 'loading' | 'success' | 'fail';
@@ -90,6 +91,7 @@ const authSlice = createSlice({
           email: action.payload.email,
           mobile: action.payload.mobile,
           address: action.payload.address,
+          password: action.payload.password,
         };
         state.id = action.payload.id;
         state.message = action.payload.message;
@@ -104,3 +106,91 @@ const authSlice = createSlice({
 
 export const {resetAuthState, logout} = authSlice.actions;
 export default authSlice.reducer;
+
+// import {createAsyncThunk, createSlice} from '@reduxjs/toolkit';
+// import {APIClient} from '../../api/ApiClient';
+
+// interface LoginPayload {
+//   username: string;
+//   password: string;
+//   email?: string;
+//   country_code?: string;
+//   mobile?: string;
+//   address?: string;
+//   id?: string;
+// }
+
+// interface AuthState {
+//   user: {
+//     username: string | null;
+//     password: string | null;
+//     email?: string | null;
+//     country_code?: null;
+//     mobile?: string | null;
+//     address?: string | null;
+//     id?: string | null;
+//   } | null;
+//   status: 'idle' | 'loading' | 'success' | 'fail';
+//   message: string | null;
+//   error: string | null;
+// }
+
+// const initialState: AuthState = {
+//   user: null,
+//   status: 'idle',
+//   message: null,
+//   error: null,
+// };
+
+// export const loginUser = createAsyncThunk(
+//   'auth',
+//   async (paylode: LoginPayload, {rejectWithValue}) => {
+//     try {
+//       const response = await APIClient.post('login', {paylode});
+
+//       if (response.data.status === 'fail') {
+//         return rejectWithValue(response.data);
+//       }
+
+//       return response.data;
+//     } catch (error: any) {
+//       return rejectWithValue(
+//         error.response?.data || {
+//           message: 'login fail',
+//           states: 'fail',
+//         },
+//       );
+//     }
+//   },
+// );
+
+// const userSlice = createSlice({
+//   name: 'auth',
+//   initialState,
+//   reducers: {
+//     resetloginData: state => {
+//       return {...initialState};
+//     },
+//   },
+//   extraReducers: bulder => {
+//     bulder
+//       .addCase(loginUser.pending, state => {
+//         state.status = 'loading';
+//         state.error = null;
+//         state.message = null;
+//       })
+//       .addCase(loginUser.fulfilled, (state, action) => {
+//         state.status = 'success';
+//         state.user = action.payload.user;
+//         state.message = action.payload.message;
+//       })
+//       .addCase(loginUser.rejected, (state, action: any) => {
+//         state.status = 'fail';
+//         state.error =
+//           action.payload.message || action.error.message || 'fail to login';
+//         state.message = state.error;
+//       });
+//   },
+// });
+// export const {resetloginData} = userSlice.actions;
+// export default userSlice.reducer;

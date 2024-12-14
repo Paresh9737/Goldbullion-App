@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  ToastAndroid,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -24,6 +25,8 @@ import {Colors} from '../../theme/Colors';
 import {Fonts} from '../../assets/Fonts';
 import {FontSizes} from '../../theme/FontSizes';
 import {AuthStackParamList} from '../../navigator/AuthStackNavigator';
+import {useCustomAlert} from '../../components/useCustomAlertAllScreen';
+import CustomAlert from '../../components/CustomAlertALLScreen';
 
 type OtpScreenNavigationProp = StackNavigationProp<
   AuthStackParamList,
@@ -48,8 +51,7 @@ const ForgotPasswordOtpScreen = ({navigation, route}: Props) => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isResending, setIsResending] = useState<boolean>(false);
   const inputRefs = useRef<Array<TextInput | null>>([]);
-
-  // const navigation = useNavigation();
+  const {visible, alertConfig, showAlert, hideAlert} = useCustomAlert();
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -66,12 +68,12 @@ const ForgotPasswordOtpScreen = ({navigation, route}: Props) => {
     const backHandler = BackHandler.addEventListener(
       'hardwareBackPress',
       () => {
-        navigation.goBack(); // Navigate back when the back button is pressed
-        return true; // Prevent default behavior (exiting the app)
+        navigation.goBack();
+        return true;
       },
     );
 
-    return () => backHandler.remove(); // Clean up the event listener on unmount
+    return () => backHandler.remove();
   }, [navigation]);
 
   const sendOTP = async () => {
@@ -83,7 +85,15 @@ const ForgotPasswordOtpScreen = ({navigation, route}: Props) => {
       setConfirm(confirmation);
       setIsResending(false);
     } catch (error) {
-      Alert.alert('Error', 'Failed to send OTP. Please try again.');
+      showAlert({
+        title: 'Error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Failed to send OTP. Please try again.',
+        confirmText: 'OK',
+        onConfirm: hideAlert,
+      });
     }
   };
 
@@ -106,34 +116,62 @@ const ForgotPasswordOtpScreen = ({navigation, route}: Props) => {
 
   const verifyOTP = async () => {
     if (!confirm) {
-      Alert.alert('Error', 'Please request OTP first');
+      showAlert({
+        title: 'Error',
+        message: 'OTP request timed out. Please resend.',
+        confirmText: 'OK',
+        onConfirm: hideAlert,
+      });
       return;
     }
 
     const otpString = otp.join('');
-    if (otpString.length !== 6) {
-      Alert.alert('Error', 'Please enter a valid 6-digit OTP');
+    if (!/^\d{6}$/.test(otpString)) {
+      showAlert({
+        title: 'Invalid OTP',
+        message: 'Please enter a valid 6-digit OTP',
+        confirmText: 'OK',
+        onConfirm: hideAlert,
+      });
+
       return;
     }
 
     try {
       setIsLoading(true);
       await confirm.confirm(otpString);
+
+      if (Platform.OS === 'android') {
+        ToastAndroid.show('VERIFY DONE', ToastAndroid.LONG);
+      } else if (Platform.OS === 'ios') {
+        // Add iOS equivalent notification
+        Alert.alert('Success', 'VERIFY DONE');
+      }
       navigation.navigate('NewSetPasswordScreen', {data: data});
     } catch (error) {
-      console.error('Error verifying OTP:', error);
-      Alert.alert('Error', 'Invalid OTP. Please try again.');
+      showAlert({
+        title: 'Verification Failed',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Invalid OTP. Please try again.',
+        confirmText: 'OK',
+        onConfirm: hideAlert,
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleOtpChange = (index: number, value: string) => {
+    // Validate input to only allow numeric characters
+    const numericValue = value.replace(/[^0-9]/g, '');
+
     const newOtp = [...otp];
-    newOtp[index] = value;
+    newOtp[index] = numericValue;
     setOtp(newOtp);
 
-    if (value !== '' && index < 5) {
+    if (numericValue !== '' && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
   };
@@ -197,6 +235,14 @@ const ForgotPasswordOtpScreen = ({navigation, route}: Props) => {
             </Text>
           </TouchableOpacity>
         </View>
+        <CustomAlert
+          visible={visible}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          confirmText={alertConfig.confirmText}
+          onConfirm={alertConfig.onConfirm}
+          onCancel={hideAlert}
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );

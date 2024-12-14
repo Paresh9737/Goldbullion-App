@@ -23,7 +23,7 @@ const styles = StyleSheet.create({
   flashMessageStyle: {
     borderRadius: 10,
     marginHorizontal: 10,
-    marginTop: 10,
+    marginTop: 5,
     paddingVertical: 8,
   },
   titleStyle: {

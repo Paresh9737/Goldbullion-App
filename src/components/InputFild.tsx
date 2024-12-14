@@ -28,6 +28,7 @@ const InputField: React.FC<InputFieldProps> = ({
   rightIcon,
   containerStyle,
   inputStyle, // Destructure the new prop
+
   ...textInputProps
 }) => {
   return (

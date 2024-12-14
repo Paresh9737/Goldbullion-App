@@ -3,7 +3,7 @@ import {APIClient} from '../../api/ApiClient';
 
 // આ ઈન્ટરફેસમાં યુઝરના રજિસ્ટ્રેશન માટે જરૂરી ડેટાની વ્યાખ્યા છે.
 interface changePasswordPayload {
-  user_id: string;
+  user_id: string | null;
   password: string;
   password_confirmation: string;
   old_password: string;
@@ -36,7 +36,7 @@ export const changePasswordUser = createAsyncThunk(
     try {
       // API કૉલ
       const response = await APIClient.post('changePassword', payload);
-
+      console.log('changePassword', response.data);
       if (response.data.status === 'fail') {
         return rejectWithValue(response.data); // ભૂલ હેન્ડલ કરે છે
       }
@@ -82,8 +82,9 @@ const changePasswordSlice = createSlice({
       })
       .addCase(changePasswordUser.rejected, (state, action: any) => {
         state.status = 'fail';
-        state.error = action.payload?.message || 'Registration failed';
-        state.message = action.payload?.message || 'Registration failed';
+        state.error =
+          action.payload?.message || action.error?.message || 'changePassword';
+        state.message = state.error;
       });
   },
 });

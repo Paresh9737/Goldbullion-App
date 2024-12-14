@@ -38,7 +38,6 @@ type FormData = {
   password: string;
   newpassword: string;
   oldpassword: string;
-  id: string;
 };
 
 type Errors = {
@@ -55,17 +54,16 @@ const OtpVeriftProfileScreen: React.FC<OtpVeriftProfileScreenProps> = ({
     password: '',
     newpassword: '',
     oldpassword: '',
-    id: user.id || '',
   });
   const [errors, setErrors] = useState<Errors>({});
   const {logout} = useContext(AuthContext);
   const dispatch = useAppDispatch();
 
   const changePasswordStatus = useAppSelector(
-    (state: RootState) => state.changePassword.status,
+    state => state.changePassword.status,
   );
   const changePasswordError = useAppSelector(
-    (state: RootState) => state.changePassword.error,
+    state => state.changePassword.error,
   );
 
   const loadUserData = async () => {
@@ -98,62 +96,86 @@ const OtpVeriftProfileScreen: React.FC<OtpVeriftProfileScreenProps> = ({
     setShowPasswordSecond(!ShowPasswordSecond);
   };
 
-  const Submit = async () => {
-    let newErrors: Errors = {};
-    let isValid = true;
+  const validateForm = (): boolean => {
+    const newErrors: Errors = {};
 
-    if (!formData.oldpassword || formData.oldpassword.length < 6) {
+    // Comprehensive password validation
+    if (!formData.oldpassword) {
+      newErrors.oldpassword = 'Old password is required';
+    } else if (formData.oldpassword.length < 6) {
       newErrors.oldpassword = 'Old password must be at least 6 characters';
-      isValid = false;
     }
 
-    if (!formData.password || formData.password.length < 6) {
+    if (!formData.password) {
+      newErrors.password = 'New password is required';
+    } else if (formData.password.length < 6) {
       newErrors.password = 'New password must be at least 6 characters';
-      isValid = false;
     }
-    if (!formData.newpassword || formData.newpassword.length < 6) {
+
+    if (!formData.newpassword) {
+      newErrors.newpassword = 'Confirm password is required';
+    } else if (formData.newpassword.length < 6) {
       newErrors.newpassword = 'Confirm password must be at least 6 characters';
-      isValid = false;
     }
 
     if (formData.password !== formData.newpassword) {
       newErrors.newpassword = 'Passwords do not match';
-      isValid = false;
     }
 
     setErrors(newErrors);
-    if (isValid) {
-      try {
-        await dispatch(
-          changePasswordUser({
-            user_id: formData.id,
-            password: formData.password,
-            password_confirmation: formData.newpassword,
-            old_password: formData.oldpassword,
-          }),
-        ).unwrap();
-        if (changePasswordStatus === 'success') {
-          showMessage({
-            message: 'success',
-            description: 'Password changed successfully',
-            type: 'success',
-            duration: 3000,
-          });
+    return Object.keys(newErrors).length === 0;
+  };
 
-          logout();
-        } else if (changePasswordStatus === 'fail' && changePasswordError) {
-          showMessage({
-            message: 'error',
-            description: changePasswordError || 'Password changed error',
-            type: 'danger',
-            duration: 3000,
-          });
-        }
-      } catch (error: any) {
-        console.log(error);
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
+
+    try {
+      const actionResult = await dispatch(
+        changePasswordUser({
+          user_id: user.id,
+          password: formData.password,
+          password_confirmation: formData.newpassword,
+          old_password: formData.oldpassword,
+        }),
+      ).unwrap();
+
+      // Handle successful password change
+      if (actionResult.status === 'success') {
+        showMessage({
+          message: 'Success',
+          description: 'Password changed successfully',
+          type: 'success',
+          duration: 3000,
+        });
+
+        // Optional: Navigate away or logout
+        logout();
+      } else {
+        // Handle server-side validation or error
+        showMessage({
+          message: 'Error',
+          description: actionResult.message || 'Password change failed',
+          type: 'danger',
+          duration: 3000,
+        });
       }
+    } catch (error: any) {
+      // Handle unexpected errors
+      const errorMessage =
+        error.message ||
+        error.response?.data?.message ||
+        'An unexpected error occurred';
+
+      // Multiple error reporting mechanisms
+      ToastAndroid.show(errorMessage, ToastAndroid.SHORT);
+
+      showMessage({
+        message: 'Change Password Error',
+        description: errorMessage,
+        type: 'danger',
+        duration: 3000,
+      });
     }
-    return isValid;
   };
   return (
     <KeyboardAvoidingView
@@ -263,7 +285,7 @@ const OtpVeriftProfileScreen: React.FC<OtpVeriftProfileScreenProps> = ({
 
           <CustomButton
             title="SUBMIT"
-            onPress={Submit}
+            onPress={handleSubmit}
             buttonStyle={{backgroundColor: Colors.Yellow}}
             textStyle={{color: Colors.black}}
           />

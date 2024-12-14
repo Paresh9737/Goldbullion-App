@@ -10,3 +10,6 @@ export const MESSAGES = {
     AUTHENTICATION: 'Authentication error',
     SETTINGS: 'Error opening settings',
   } as const;
+
+
+ 

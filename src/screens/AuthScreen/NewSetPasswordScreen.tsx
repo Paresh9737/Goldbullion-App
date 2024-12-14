@@ -120,7 +120,6 @@ const NewSetPasswordScreen = ({navigation, route}: Props) => {
           ToastAndroid.LONG,
           ToastAndroid.TOP,
         );
-        console.error('New password error:', error);
       }
     }
     return isValid;

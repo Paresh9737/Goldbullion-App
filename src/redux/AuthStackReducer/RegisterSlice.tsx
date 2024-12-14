@@ -11,22 +11,21 @@ interface RegisterPayload {
 }
 // આ ઈન્ટરફેસમાં સ્ટેટ મેનેજ કરવા માટેના તમામ ફીલ્ડ્સ અને તેમની પ્રારંભિક હાલત દર્શાવવામાં આવી છે.
 interface RegisterState {
-  username: string | null;
-  email: string | null;
-  country_code: string | null;
-  mobile: string | null;
-  address: string | null;
+  userData: {
+    username: string | null;
+    email: string | null;
+    country_code: string | null;
+    mobile: string | null;
+    address: string | null;
+  } | null;
+
   message: string | null;
   status: 'idle' | 'loading' | 'success' | 'fail';
   error: string | null;
 }
 // પ્રારંભમાં સ્ટેટની વ્યાખ્યા કરવામાં આવી છે.
 const initialState: RegisterState = {
-  username: null,
-  email: null,
-  country_code: null,
-  mobile: null,
-  address: null,
+  userData: null,
   message: null,
   status: 'idle',
   error: null,
@@ -66,6 +65,12 @@ const RegisterSlice = createSlice({
     resetRegistration: state => {
       return {...initialState};
     },
+    clearUserData: state => {
+      state.userData = null;
+      state.message = null;
+      state.status = 'idle';
+      state.error = null;
+    },
   },
   extraReducers: builder => {
     builder
@@ -73,23 +78,32 @@ const RegisterSlice = createSlice({
         state.status = 'loading';
         state.error = null;
         state.message = null;
+        state.userData = null;
       })
       .addCase(registerUser.fulfilled, (state, action) => {
         state.status = 'success';
-        state.username = action.payload.username;
-        state.email = action.payload.email;
-        state.country_code = action.payload.country_code;
-        state.mobile = action.payload.mobile;
-        state.address = action.payload.address;
+        state.userData = {
+          username: action.payload.username,
+          email: action.payload.email,
+          country_code: action.payload.country_code,
+          mobile: action.payload.mobile,
+          address: action.payload.address,
+        };
+        state.message = action.payload.message;
+
         state.message = action.payload.message;
       })
       .addCase(registerUser.rejected, (state, action: any) => {
         state.status = 'fail';
-        state.error = action.payload?.message || 'Registration failed';
-        state.message = action.payload?.message || 'Registration failed';
+        state.error =
+          action.payload?.message ||
+          action.error?.message ||
+          'Registration failed';
+        state.message = state.error;
+        state.userData = null;
       });
   },
 });
 // Reducer અને એક્શનને એક્સપોર્ટ કરવું.
-export const {resetRegistration} = RegisterSlice.actions;
+export const {resetRegistration, clearUserData} = RegisterSlice.actions;
 export default RegisterSlice.reducer;

@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,6 @@ import {
 } from 'react-native-responsive-dimensions';
 import {Fonts} from '../assets/Fonts';
 import {FontSizes} from '../theme/FontSizes';
-import CheckInternet from './CheckInternet';
 
 interface ProductItem {
   id: string;

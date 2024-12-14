@@ -143,7 +143,6 @@ const ContactUs = () => {
 
     setErrors(newErrors);
     if (isValid) {
-      console.log('done');
       ToastAndroid.show('Feedback Form submit', ToastAndroid.LONG);
     }
     return isValid;

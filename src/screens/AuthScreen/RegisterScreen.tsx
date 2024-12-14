@@ -9,65 +9,84 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import React, {useState} from 'react';
+import React, {useCallback, useState} from 'react';
 import {StackNavigationProp} from '@react-navigation/stack';
-import {Colors} from '../../theme/Colors';
+import {showMessage} from 'react-native-flash-message';
+// Components
+import CustomButton from '../../components/CustomButton';
+import CustomFlashMessage from '../../components/CustomFlashMessage';
+import InputField from '../../components/InputFild';
+import {Svg} from '../../helper/SvgProvider';
+// Hooks and Utils
 import {
   responsiveScreenHeight,
   responsiveScreenWidth,
 } from 'react-native-responsive-dimensions';
-import InputField from '../../components/InputFild';
-import {Svg} from '../../helper/SvgProvider';
-import {FontSizes} from '../../theme/FontSizes';
-import CustomButton from '../../components/CustomButton';
-import {Fonts} from '../../assets/Fonts';
-import {AuthStackParamList} from '../../navigator/AuthStackNavigator';
 import {useAppDispatch, useAppSelector} from '../../redux/hook';
 import {
+  clearUserData,
   registerUser,
   resetRegistration,
 } from '../../redux/AuthStackReducer/RegisterSlice';
-import FlashMessage, {showMessage} from 'react-native-flash-message';
-import CustomFlashMessage from '../../components/CustomFlashMessage';
-type RegisterScreenNavigationProp = StackNavigationProp<
-  AuthStackParamList,
-  'RegisterScreen'
->;
-type Props = {
-  navigation: RegisterScreenNavigationProp;
-};
-type FormData = {
+// Types and Constants
+import {Fonts} from '../../assets/Fonts';
+import {FontSizes} from '../../theme/FontSizes';
+import {Colors} from '../../theme/Colors';
+import {AuthStackParamList} from '../../navigator/AuthStackNavigator';
+import {useFocusEffect} from '@react-navigation/native';
+import {
+  isValidAddress,
+  isValidPassword,
+  VALIDATION,
+} from '../../utils/Validator';
+import {
+  isValidEmail,
+  isValidMobile,
+  isValidUsername,
+} from '../../utils/Validator';
+interface RegisterScreenNavigationProp {
+  navigation: StackNavigationProp<AuthStackParamList, 'OtpScreen'>;
+}
+type RegisterFormData = {
   username: string;
   password: string;
   email: string;
-  contact: string;
+  mobile: string;
   country_code: string;
   address: string;
 };
-type Errors = {
-  [K in keyof FormData]?: string;
+const REGISTER_INITIAL_FORM_STATE: RegisterFormData = {
+  username: '',
+  password: '',
+  email: '',
+  mobile: '',
+  country_code: '+91',
+  address: '',
 };
 
-const MIN_LENGTH = 10;
-const MAX_LENGTH = 10;
+type Errors = {
+  [K in keyof RegisterFormData]?: string;
+};
 
-const RegisterScreen = ({navigation}: Props) => {
+const RegisterScreen = ({navigation}: RegisterScreenNavigationProp) => {
   const [ShowPassword, setShowPassword] = useState<Boolean>(false);
-  const [formData, setFormData] = useState<FormData>({
-    username: '',
-    password: '',
-    email: '',
-    contact: '',
-    country_code: '+91',
-    address: '',
-  });
+  const [formData, setFormData] = useState<RegisterFormData>(
+    REGISTER_INITIAL_FORM_STATE,
+  );
   const [errors, setErrors] = useState<Errors>({});
   const dispatch = useAppDispatch();
+
   const isLoading = useAppSelector(
     state => state.ragister.status === 'loading',
   );
-
-  const handleInputChange = (field: keyof FormData, value: string) => {
+  // Reset input fields and errors when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      setFormData(REGISTER_INITIAL_FORM_STATE);
+      setErrors({});
+    }, []),
+  );
+  const handleInputChange = (field: keyof RegisterFormData, value: string) => {
     setFormData(prev => ({...prev, [field]: value}));
     if (errors[field]) {
       setErrors(prev => ({...prev, [field]: ''}));
@@ -77,36 +96,37 @@ const RegisterScreen = ({navigation}: Props) => {
   const handleRegister = async () => {
     let newErrors: Errors = {};
     let isValid = true;
-
-    if (!formData.username || formData.username.length < 4) {
-      newErrors.username = 'Username must be at least 4 characters';
+    const usernameValidation = isValidUsername(formData.username);
+    if (usernameValidation !== '') {
+      newErrors.username = usernameValidation;
       isValid = false;
     }
 
-    if (!formData.password || formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+    // Password validation
+    const passwordValidation = isValidPassword(formData.password);
+    if (passwordValidation !== '') {
+      newErrors.password = passwordValidation;
       isValid = false;
     }
 
-    if (
-      !formData.contact ||
-      formData.contact.length < MIN_LENGTH ||
-      formData.contact.length > MAX_LENGTH
-    ) {
-      newErrors.contact = `phone must be between ${MIN_LENGTH} and ${MAX_LENGTH} digits`;
+    // Mobile validation
+    const mobileValidation = isValidMobile(formData.mobile);
+    if (mobileValidation !== '') {
+      newErrors.mobile = mobileValidation;
       isValid = false;
     }
 
-    if (!formData.email) {
-      newErrors.email = 'email is required';
-      isValid = false;
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
+    // Email validation
+    const emailValidation = isValidEmail(formData.email);
+    if (emailValidation !== '') {
+      newErrors.email = emailValidation;
       isValid = false;
     }
 
-    if (!formData.address || formData.address.length < 4) {
-      newErrors.address = 'Username must be at least 4 characters';
+    // Address validation
+    const addressValidation = isValidAddress(formData.address);
+    if (addressValidation !== '') {
+      newErrors.address = addressValidation;
       isValid = false;
     }
 
@@ -114,63 +134,60 @@ const RegisterScreen = ({navigation}: Props) => {
 
     if (isValid) {
       try {
-        const result = await dispatch(
-          registerUser({
-            username: formData.username,
-            password: formData.password,
-            email: formData.email,
-            country_code: formData.country_code,
-            mobile: formData.contact,
-            address: formData.address,
-          }),
-        ).unwrap();
+        await dispatch(registerUser(formData)).unwrap();
 
-        if (result.status === 'success') {
-          navigation.navigate('OtpScreen', {
-            navigationData: formData,
-          });
+        navigation.navigate('OtpScreen', {
+          navigationData: formData,
+        });
 
-          ToastAndroid.showWithGravity(
-            'Registration success',
-            ToastAndroid.SHORT,
-            ToastAndroid.TOP,
-          );
+        ToastAndroid.showWithGravity(
+          'Registration success',
+          ToastAndroid.SHORT,
+          ToastAndroid.TOP,
+        );
+        // Reset form and state
+        setFormData(REGISTER_INITIAL_FORM_STATE);
 
-          // Reset form
-          setFormData({
-            username: '',
-            password: '',
-            email: '',
-            contact: '',
-            country_code: '+91',
-            address: '',
-          });
-
-          // Reset registration state
-          dispatch(resetRegistration());
-        } else {
-          showMessage({
-            message: 'Registration Failed',
-            description: result.message || 'Please try again',
-            type: 'danger',
-            duration: 3000,
-          });
-        }
+        dispatch(clearUserData());
       } catch (error: any) {
+        // More detailed error handling
+        const errorMessage =
+          error.message ||
+          error.response?.data?.message ||
+          'An unexpected error occurred during registration';
+        ToastAndroid.showWithGravity(
+          errorMessage,
+          ToastAndroid.SHORT,
+          ToastAndroid.TOP,
+        );
         showMessage({
-          message: 'Error',
-          description: error.message || 'An error occurred during registration',
+          message: 'Registration Error',
+          description: errorMessage,
           type: 'danger',
           duration: 3000,
         });
       }
     }
-
     return isValid;
   };
-  const toggleShowPassword = () => {
-    setShowPassword(!ShowPassword);
-  };
+
+  const renderInputField = (
+    field: keyof RegisterFormData,
+    placeholder: string,
+    icon: React.ReactNode,
+    props = {},
+  ) => (
+    <>
+      <InputField
+        value={formData[field]}
+        onChangeText={text => handleInputChange(field, text)}
+        placeholder={placeholder}
+        leftIcon={icon}
+        {...props}
+      />
+      {errors[field] && <Text style={styles.errorText}>{errors[field]}</Text>}
+    </>
+  );
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -180,107 +197,83 @@ const RegisterScreen = ({navigation}: Props) => {
         <View style={styles.secondContainer}>
           <Text style={styles.RegisterText}>Signup</Text>
 
-          {/* username  */}
-          <InputField
-            value={formData.username}
-            onChangeText={text => handleInputChange('username', text)}
-            placeholder="Username"
-            leftIcon={
-              <Svg.Use
-                height={responsiveScreenHeight(5)}
-                width={responsiveScreenWidth(7)}
-              />
-            }
-          />
-          {errors.username ? (
-            <Text style={styles.errorText}>{errors.username}</Text>
-          ) : null}
-          {/* password  */}
-          <InputField
-            value={formData.password}
-            onChangeText={text => handleInputChange('password', text)}
-            placeholder="Password"
-            secureTextEntry={!ShowPassword}
-            leftIcon={
-              <Svg.LockPassword
-                height={responsiveScreenHeight(5)}
-                width={responsiveScreenWidth(7)}
-              />
-            }
-            rightIcon={
-              <TouchableOpacity onPress={toggleShowPassword}>
-                {ShowPassword ? (
-                  <Svg.Eye
-                    height={responsiveScreenHeight(5)}
-                    width={responsiveScreenWidth(7)}
-                  />
-                ) : (
-                  <Svg.CloseEye
-                    height={responsiveScreenHeight(5)}
-                    width={responsiveScreenWidth(7)}
-                  />
-                )}
-              </TouchableOpacity>
-            }
-          />
-          {errors.password ? (
-            <Text style={styles.errorText}>{errors.password}</Text>
-          ) : null}
-          {/* Call  */}
-          <InputField
-            value={formData.contact}
-            onChangeText={text => handleInputChange('contact', text)}
-            maxLength={MAX_LENGTH}
-            placeholder="Contact No."
-            keyboardType="number-pad"
-            leftIcon={
-              <Svg.Call
-                height={responsiveScreenHeight(4)}
-                width={responsiveScreenWidth(5)}
-              />
-            }
-          />
-          {errors.contact ? (
-            <Text style={styles.errorText}>{errors.contact}</Text>
-          ) : null}
-          {/* Email  */}
-          <InputField
-            value={formData.email}
-            onChangeText={text => handleInputChange('email', text)}
-            placeholder="Email"
-            keyboardType="email-address"
-            leftIcon={
-              <Svg.Email
-                height={responsiveScreenHeight(5)}
-                width={responsiveScreenWidth(6)}
-              />
-            }
-          />
-          {errors.email ? (
-            <Text style={styles.errorText}>{errors.email}</Text>
-          ) : null}
-          {/* Filad Name  */}
-          <InputField
-            value={formData.address}
-            onChangeText={text => handleInputChange('address', text)}
-            placeholder="address"
-            leftIcon={
-              <Svg.Use
-                height={responsiveScreenHeight(5)}
-                width={responsiveScreenWidth(7)}
-              />
-            }
-          />
-          {errors.address ? (
-            <Text style={styles.errorText}>{errors.address}</Text>
-          ) : null}
+          {renderInputField(
+            'username',
+            'Username',
+            <Svg.Use
+              height={responsiveScreenHeight(5)}
+              width={responsiveScreenWidth(7)}
+            />,
+          )}
+
+          {renderInputField(
+            'password',
+            'Password',
+            <Svg.LockPassword
+              height={responsiveScreenHeight(5)}
+              width={responsiveScreenWidth(7)}
+            />,
+            {
+              secureTextEntry: !ShowPassword,
+              rightIcon: (
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!ShowPassword)}>
+                  {ShowPassword ? (
+                    <Svg.Eye
+                      height={responsiveScreenHeight(5)}
+                      width={responsiveScreenWidth(7)}
+                    />
+                  ) : (
+                    <Svg.CloseEye
+                      height={responsiveScreenHeight(5)}
+                      width={responsiveScreenWidth(7)}
+                    />
+                  )}
+                </TouchableOpacity>
+              ),
+            },
+          )}
+
+          {renderInputField(
+            'mobile',
+            'Mobile No.',
+            <Svg.Call
+              height={responsiveScreenHeight(4)}
+              width={responsiveScreenWidth(5)}
+            />,
+            {
+              maxLength: 10,
+              keyboardType: 'number-pad',
+            },
+          )}
+
+          {renderInputField(
+            'email',
+            'Email',
+            <Svg.Email
+              height={responsiveScreenHeight(5)}
+              width={responsiveScreenWidth(6)}
+            />,
+            {
+              keyboardType: 'email-address',
+            },
+          )}
+
+          {renderInputField(
+            'address',
+            'Address',
+            <Svg.Use
+              height={responsiveScreenHeight(5)}
+              width={responsiveScreenWidth(7)}
+            />,
+          )}
 
           <CustomButton
-            title="VERIFY"
+            title={isLoading ? 'Loading...' : 'VERIFY'}
             onPress={handleRegister}
             buttonStyle={{
               backgroundColor: Colors.Yellow,
-              opacity: isLoading ? 0.7 : 1,
+              opacity: isLoading ? 0.5 : 1,
             }}
             textStyle={{color: Colors.black}}
             disabled={isLoading}

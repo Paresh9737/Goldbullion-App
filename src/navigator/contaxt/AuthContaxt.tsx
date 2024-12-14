@@ -1,58 +1,107 @@
+// AuthContext.tsx
 import React, {createContext, useEffect, useState} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useAppDispatch} from '../../redux/hook';
-import {logoutUser} from '../../redux/userSlice';
+import {logoutUser, setUser} from '../../redux/userSlice';
 
 export type AuthContextType = {
-  login: () => void;
-  logout: () => void;
+  login: (token: string, userData: any) => Promise<void>;
+  logout: () => Promise<void>;
   isLoading: boolean;
   userToken: string | null;
 };
 
 export const AuthContext = createContext<AuthContextType>({
-  login: () => {},
-  logout: () => {},
+  login: async () => {},
+  logout: async () => {},
   isLoading: false,
   userToken: null,
 });
+
 export const AuthProvider: React.FC<{children: React.ReactNode}> = ({
   children,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [userToken, setUserToken] = useState<string | null>(null);
   const dispatch = useAppDispatch();
-  const login = () => {
-    setIsLoading(true);
-    setUserToken('newUserAsyn');
-    AsyncStorage.setItem('userToken', 'newUserAsyn');
-    setIsLoading(false);
-  };
 
-  const logout = () => {
-    setIsLoading(true);
-    setUserToken(null);
-    AsyncStorage.removeItem('userToken');
-    AsyncStorage.removeItem('user');
-    AsyncStorage.removeItem('user');
-    dispatch(logoutUser());
-
-    setIsLoading(false);
-  };
-
-  const isLoggedIn = async () => {
+  const login = async (token: string, userData: any) => {
     try {
       setIsLoading(true);
-      let userToken = await AsyncStorage.getItem('userToken');
-      setUserToken(userToken);
+
+      // Save token
+      await AsyncStorage.setItem('userToken', token);
+      setUserToken(token);
+
+      // Save user data
+      const userDataString = JSON.stringify(userData);
+      await AsyncStorage.setItem('user', userDataString);
+      dispatch(setUser(userData));
+    } catch (error) {
+      console.error('Login storage error:', error);
+      throw error;
+    } finally {
       setIsLoading(false);
-    } catch (e) {
-      console.log(`isLogged in error ${e}`);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      setIsLoading(true);
+
+      // Clear token
+      await AsyncStorage.removeItem('userToken');
+      setUserToken(null);
+
+      // Clear user data
+      await AsyncStorage.removeItem('user');
+      dispatch(logoutUser());
+    } catch (error) {
+      console.error('Logout error:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadStoredData = async () => {
+    try {
+      setIsLoading(true);
+
+      // Load token
+      const token = await AsyncStorage.getItem('userToken');
+      setUserToken(token);
+
+      // Load user data
+      const userDataString = await AsyncStorage.getItem('user');
+      if (userDataString) {
+        try {
+          const userData = JSON.parse(userDataString);
+          if (userData && typeof userData === 'object') {
+            dispatch(setUser(userData));
+          } else {
+            // Invalid data format, clear it
+            await AsyncStorage.removeItem('user');
+          }
+        } catch (parseError) {
+          console.error('Error parsing user data:', parseError);
+          // Clear corrupted data
+          await AsyncStorage.removeItem('user');
+        }
+      }
+    } catch (error) {
+      console.error('Error loading stored data:', error);
+      // Clear everything on error
+      await AsyncStorage.multiRemove(['userToken', 'user']);
+      setUserToken(null);
+      dispatch(logoutUser());
+    } finally {
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    isLoggedIn();
+    loadStoredData();
   }, []);
 
   return (

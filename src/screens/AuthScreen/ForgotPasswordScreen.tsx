@@ -23,7 +23,6 @@ import {AuthStackParamList} from '../../navigator/AuthStackNavigator';
 import {useAppDispatch, useAppSelector} from '../../redux/hook';
 import {checkMobileNumber} from '../../redux/AuthStackReducer/ForgotPasswordSlice';
 
-const MIN_LENGTH = 10;
 const MAX_LENGTH = 10;
 type RegisterScreenNavigationProp = StackNavigationProp<
   AuthStackParamList,
@@ -46,10 +45,8 @@ const ForgotPasswordScreen = ({navigation}: Props) => {
 
     if (!contact) {
       setError('Phone number is required.');
-    } else if (contact.length < MIN_LENGTH || contact.length > MAX_LENGTH) {
-      setError(
-        `Phone number must be between ${MIN_LENGTH} and ${MAX_LENGTH} digits.`,
-      );
+    } else if (contact.length > MAX_LENGTH) {
+      setError(`Phone number must be between and ${MAX_LENGTH} digits.`);
     } else {
       try {
         const actionResult = await dispatch(
